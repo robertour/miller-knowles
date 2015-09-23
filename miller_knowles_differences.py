@@ -112,7 +112,7 @@ class SocialNetwork(object):
                              self.b * max(len(neighbors_n1), \
                                           len(g.neighbors(n2_index)))):
                             # TODO this is incorrect but might be affecting the results
-                            n1[1]['nst'] = n2['st']
+                            n1[1]['nst'] = n1[1]['st'] = n2['st']
     
                         #probability P =   neighbour_fitness     focal_node_fitness
                         #                  ------------------ - --------------------
@@ -190,16 +190,18 @@ class SocialNetwork(object):
                 
         size = len(g)
 
-        # in Steve's code he uses int, casting, instead of round
-        for i in range(0,round(size*self.X)):       
+        # in Steve's code he uses int instead of round
+        # TODO put back to round
+        for i in range(0,int(size*self.X)):       
             
-            # avoid repetitions randomly select the participants
-            tombola = random.sample(g.nodes(data=True), round(size*self.tourn))
+            # #TODO avoid repetitions randomly select the participants
+           #  tombola = random.sample(g.nodes(data=True), round(size*self.tourn))
+            
             
             #following millers approach
-            #tombola = [] 
-            #for i in range(10):
-            #    tombola.append(random.choice(g.nodes(data=True)))
+            tombola = [] 
+            for i in range(10):
+                tombola.append(random.choice(g.nodes(data=True)))
             
             
             # search for the "winners" (or really "losers")
