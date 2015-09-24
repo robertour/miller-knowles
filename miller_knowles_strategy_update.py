@@ -112,7 +112,7 @@ class SocialNetwork(object):
                              self.b * max(len(neighbors_n1), \
                                           len(g.neighbors(n2_index)))):
                             # TODO this is incorrect but might be affecting the results
-                            n1[1]['nst'] = n2['st']
+                            n1[1]['nst'] = n1[1]['st'] = n2['st']
     
                         #probability P =   neighbour_fitness     focal_node_fitness
                         #                  ------------------ - --------------------
