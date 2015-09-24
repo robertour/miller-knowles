@@ -61,20 +61,13 @@ class SocialNetwork(object):
 
     def play_games(self):
         g = self.g
-        # TODO this is very inneficient
+        # TODO this is very inefficient - O(n)
         # look for a better way to do this!!!!!!!
         nodes = dict(g.nodes(data=True))
         r = self.fitness.fill(0)
         
-        
-        #nx.get_node_attributes(self.g, 0)
-        
-        #print(nodes)
-        #print(self.g.edges())
-        #print(self.g.nodes(data =True))
         for e in g.edges_iter():
             self.game.play(nodes[e[0]], nodes[e[1]])
-        #print(self.g.nodes(data =True))
 
 
     def update_strategies(self):
@@ -111,18 +104,21 @@ class SocialNetwork(object):
                         if random.random() < (1.0 * (r_n2 - r_n1) / \
                              self.b * max(len(neighbors_n1), \
                                           len(g.neighbors(n2_index)))):
-                            # TODO this is incorrect but might be affecting the results
+                            # update the strategy to a temporary vector
                             n1[1]['nst'] = n2['st']
     
-                        #probability P =   neighbour_fitness     focal_node_fitness
-                        #                  ------------------ - --------------------
-                        #                    b * k_neighbour      b * k_focal_node
+                        
+                        # Poncela´s Formula gives to much weight to the number 
+                        # of nodes, this is an alternate version
+                        # probability P = neighbour_fitness   focal_node_fitness
+                        #                 ------------------ - -----------------
+                        #                  b * k_neighbour      b * k_focal_node
     
-    #                     if random.random() < (1.0 * r_n2) / \
-    #                                          (self.b*len(g.neighbors(n2_index)))- \
-    #                                          (1.0 * r_n1) / \
-    #                                          (self.b*len(neighbors_n1)):
-    #                         n1[1]['nst'] = n2['st']
+                        # if random.random() < (1.0 * r_n2) / \
+                        # (self.b*len(g.neighbors(n2_index)))- \
+                        # (1.0 * r_n1) / \
+                        # (self.b*len(neighbors_n1)):
+                        # n1[1]['nst'] = n2['st']
         
     
     def growth_initial(self):
@@ -160,7 +156,6 @@ class SocialNetwork(object):
                 
     
     def growth_epa(self):
-        
         f_of = self.fitness_of
         survival = self.survival
         
@@ -213,9 +208,7 @@ class SocialNetwork(object):
         return len(s) - 1
 
     def attrition(self):
-        
         g = self.g
-                
         size = len(g)
 
         # in Steve's code he uses int, casting, instead of round
@@ -223,13 +216,7 @@ class SocialNetwork(object):
             
             # avoid repetitions randomly select the participants
             tombola = random.sample(g.nodes(data=True), round(size*self.tourn))
-            
-            #following millers approach
-            #tombola = [] 
-            #for i in range(10):
-            #    tombola.append(random.choice(g.nodes(data=True)))
-            
-            
+                      
             # search for the "winners" (or really "losers")
             min_fit = float("inf")
             ties = []
