@@ -61,9 +61,7 @@ class SocialNetwork(object):
 
     def play_games(self):
         g = self.g
-        # TODO this is very inefficient - O(n)
-        # look for a better way to do this!!!!!!!
-        nodes = dict(g.nodes(data=True))
+        nodes = g.node
         r = self.fitness.fill(0)
         
         for e in g.edges_iter():
@@ -78,47 +76,44 @@ class SocialNetwork(object):
         for n1 in g.nodes_iter(data = True):
             
             neighbors_n1 = g.neighbors(n1[0])
-            if len(neighbors_n1) == 0:
-                print("an isolated neighbor")
-            else:
-                n2_index = random.choice(neighbors_n1)
-                n2 = g.node[n2_index]
+            n2_index = random.choice(neighbors_n1)
+            n2 = g.node[n2_index]
+            
+            # check that the strategies are actually different
+            if n1[1]['st'] != n2['st']:
                 
-                # check that the strategies are actually different
-                if n1[1]['st'] != n2['st']:
+                r_n1 = self.fitness[n1[1]['r_index']]
+                r_n2 = self.fitness[n2['r_index']]
+                
+                # Look to see if difference is less than a millionth of
+                # largest value and then assume equivalence
+                epsilon_fitness = max(r_n2,r_n1) / 1000000
+                
+                # if the neighbor has a bigger accumulated fitness
+                if r_n2 > r_n1 + epsilon_fitness:
                     
-                    r_n1 = self.fitness[n1[1]['r_index']]
-                    r_n2 = self.fitness[n2['r_index']]
+                    #   probP = (neighbour_fitness - focal_node_fitness)
+                    #           ----------------------------------------
+                    #               b * max[k_focal_node, k_neighbour]
                     
-                    # Look to see if difference is less than a millionth of
-                    # largest value and then assume equivalence
-                    epsilon_fitness = max(r_n2,r_n1) / 1000000
+                    if random.random() < (1.0 * (r_n2 - r_n1) / \
+                         self.b * max(len(neighbors_n1), \
+                                      len(g.neighbors(n2_index)))):
+                        # update the strategy to a temporary vector
+                        n1[1]['nst'] = n2['st']
+
                     
-                    # if the neighbor has a bigger accumulated fitness
-                    if r_n2 > r_n1 + epsilon_fitness:
-                        
-                        #   probP = (neighbour_fitness - focal_node_fitness)
-                        #           ----------------------------------------
-                        #               b * max[k_focal_node, k_neighbour]
-                        
-                        if random.random() < (1.0 * (r_n2 - r_n1) / \
-                             self.b * max(len(neighbors_n1), \
-                                          len(g.neighbors(n2_index)))):
-                            # update the strategy to a temporary vector
-                            n1[1]['nst'] = n2['st']
-    
-                        
-                        # Poncela´s Formula gives to much weight to the number 
-                        # of nodes, this is an alternate version
-                        # probability P = neighbour_fitness   focal_node_fitness
-                        #                 ------------------ - -----------------
-                        #                  b * k_neighbour      b * k_focal_node
-    
-                        # if random.random() < (1.0 * r_n2) / \
-                        # (self.b*len(g.neighbors(n2_index)))- \
-                        # (1.0 * r_n1) / \
-                        # (self.b*len(neighbors_n1)):
-                        # n1[1]['nst'] = n2['st']
+                    # Poncela´s Formula gives to much weight to the number 
+                    # of nodes, this is an alternate version
+                    # probability P = neighbour_fitness   focal_node_fitness
+                    #                 ------------------ - -----------------
+                    #                  b * k_neighbour      b * k_focal_node
+
+                    # if random.random() < (1.0 * r_n2) / \
+                    # (self.b*len(g.neighbors(n2_index)))- \
+                    # (1.0 * r_n1) / \
+                    # (self.b*len(neighbors_n1)):
+                    # n1[1]['nst'] = n2['st']
         
     
     def growth_initial(self):
@@ -148,11 +143,14 @@ class SocialNetwork(object):
             n_id = self.add_node(random.choice(self.__class__.strategies), 
                                  self.gen)
             
+            # select the nodes to be connected with
+            selected = random.sample(nodes, self.e_per_gen)
+            
             # connect the node to e_per_gen nodes (edges)
-            for e in range(self.e_per_gen):
+            for s in selected:
           
                 # add the edge
-                g.add_edge(n_id, random.choice(nodes))
+                g.add_edge(n_id, s)
                 
     
     def growth_epa(self):

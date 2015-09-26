@@ -1,12 +1,9 @@
 from miller_knowles import SocialNetwork
-from miller_knowles_strategy_update import SocialNetwork as SocialNetworkStrategies
-
 
 GEN = 2000
 POP = 1000
 REP = 10
 SAMPLE = 20
-
 
 def run_one_attrition(sn):
     while (len(sn.g) < POP and sn.gen <= GEN):
@@ -53,15 +50,6 @@ for i in range(REP):
 
     for b in [1.0,1.3,1.6,1.9,2.2,2.5,2.8]:
 
-
-        sn = SocialNetwork(b=b,epsilon=0, max=POP)
-        ave = run_one_no_attrition(sn)
-        sn.print_results(i,"cra", b,ave)
-        
-        sn = SocialNetwork(b=b, max=POP)
-        ave = run_one_no_attrition(sn)
-        sn.print_results(i,"epa", b,ave)
-
         sn = SocialNetwork(b=b,epsilon=0, max=POP)
         ave = run_one_attrition(sn)
         sn.print_results(i,"cra+",b,ave)
@@ -71,25 +59,13 @@ for i in range(REP):
         sn.print_results(i,"epa+",b,ave)
 
 
-
-        sn = SocialNetworkStrategies(b=b,epsilon=0, max=POP)
+        sn = SocialNetwork(b=b,epsilon=0, max=POP)
         ave = run_one_no_attrition(sn)
-        sn.print_results(i,"mcra", b,ave)
-
-        sn = SocialNetworkStrategies(b=b, max=POP)
-        ave = run_one_no_attrition(sn)
-        sn.print_results(i,"mepa", b,ave)
+        sn.print_results(i,"cra", b,ave)
         
-        sn = SocialNetworkStrategies(b=b,epsilon=0, max=POP)
-        ave = run_one_attrition(sn)
-        sn.print_results(i,"mcra+",b,ave)
-
-        sn = SocialNetworkStrategies(b=b, max=POP)
-        ave = run_one_attrition(sn)
-        sn.print_results(i,"mepa+",b,ave)
-
-
-
+        sn = SocialNetwork(b=b, max=POP)
+        ave = run_one_no_attrition(sn)
+        sn.print_results(i,"epa", b,ave)
 
 
 
