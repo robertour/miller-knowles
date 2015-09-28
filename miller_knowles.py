@@ -1,6 +1,7 @@
 import random
 import csv
 
+from sortedcontainers import SortedList, SortedSet, SortedDict
 
 from operator import itemgetter
 import networkx as nx
@@ -28,15 +29,17 @@ class SocialNetwork(object):
         
         self.gen = 0
         self.count = 0
+        self.cooperators = 0
+        self.size = 0
         g = self.g = nx.Graph()
 
-        self.fitness = np.empty(max+n_per_gen)
-        self.survival = np.empty(max+n_per_gen)
-        self.fitness_of = np.empty(max+n_per_gen, dtype=np.int_)
+        self._max = max+n_per_gen
+        self.fitness = np.empty(self._max)
+        self.fitness_of = np.empty(self._max, dtype=np.int_)
         self.free_indexes = []
+        self.node_set = SortedSet()
         
-        for i in range(0, max+n_per_gen):
-            self.survival[i] = self.fitness[i] = 0
+        for i in range(0, self._max):
             self.fitness_of[i] = -1
             self.free_indexes.append(i)
 
@@ -50,18 +53,22 @@ class SocialNetwork(object):
         
         self.game = PD(b, self.fitness)
 
+
     def add_node(self, st, gen):
         id = self.count
         r_index = self.free_indexes.pop()
         self.g.add_node(id, st=st, nst=st, r_index=r_index, gen=gen)
+        self.node_set.add(id)
         self.fitness_of[r_index] = id
         self.fitness[r_index] = 0
+        self.size += 1
         self.count += 1
         return id
 
     def play_games(self):
         g = self.g
         nodes = g.node
+        # TODO if restarted with -1 I could avoid the loop over the edges
         r = self.fitness.fill(0)
         
         for e in g.edges_iter():
@@ -70,9 +77,9 @@ class SocialNetwork(object):
 
     def update_strategies(self):
         g = self.g
-                
         self.gen += 1
-
+        cooperators = 0
+        
         for n1 in g.nodes_iter(data = True):
             
             neighbors_n1 = g.neighbors(n1[0])
@@ -114,25 +121,25 @@ class SocialNetwork(object):
                     # (1.0 * r_n1) / \
                     # (self.b*len(neighbors_n1)):
                     # n1[1]['nst'] = n2['st']
-        
+            
+            # update coop counter
+            if n1[1]['nst'] == self.__class__.COOP:
+                cooperators += 1
+                
+        self.cooperators = cooperators
     
-    def growth_initial(self):
-        if self.count < self.n_per_gen:
+    def growth_initial(self, growth):
+        if self.size < self.n_per_gen:
             temp = self.n_per_gen
             self.n_per_gen = self.n_per_gen - self.count
-            self.growth()
+            growth()
             self.n_per_gen = temp
-
-    def growth(self):
-        if (self.epsilon == 0):
-            self.growth_cra()
-        else:
-            self.growth_epa()
 
     def growth_cra(self):
         f_of = self.fitness_of
         g = self.g
-        nodes = g.nodes()
+        node = g.node
+        node_set = self.node_set
         
         # temporary holder for fitness values and indexes 
         temp_fitness = []
@@ -143,151 +150,244 @@ class SocialNetwork(object):
             n_id = self.add_node(random.choice(self.__class__.strategies), 
                                  self.gen)
             
-            # select the nodes to be connected with
-            selected = random.sample(nodes, self.e_per_gen)
+            # select the nodes to be connected with            
+            selected = random.sample(node_set,self.e_per_gen)
             
             # connect the node to e_per_gen nodes (edges)
-            for s in selected:
+            for node in selected:
           
                 # add the edge
-                g.add_edge(n_id, s)
+                g.add_edge(n_id, node)
                 
     
     def growth_epa(self):
         f_of = self.fitness_of
-        survival = self.survival
+        fitness = self.fitness
         
+        # TODO this should innecessary !!!!!!!
         # calculate probabilities
-        survival[f_of != -1] = 1 - self.epsilon + \
-                               self.epsilon * self.fitness[f_of != -1] * 1.0
+        #survival[f_of != -1] = 1 - self.epsilon + \
+        #                       self.epsilon * self.fitness[f_of != -1]
         
-        survival /= sum(survival[f_of != -1])
         
-        # temporary holder for fitness values and indexes 
-        temp_fitness = []
-                
+        #survival /= sum(survival[f_of != -1])
+        max_sum = sum(fitness[f_of != -1])
+        
+                        
         for i in range(self.n_per_gen):
             
             # add the node to the network
             n_id = self.add_node(random.choice(self.__class__.strategies), 
                                  self.gen)
-            
+        
+            temp_fitness = []
+                
             # connect the node to e_per_gen nodes (edges)
             for e in range(self.e_per_gen):
                 
                 # get the winner fitness index
-                r_index = self.choose_r_index()
-                
+                r_index = self.choose_r_index(fitness, max_sum)
+                                
                 # add the edge
                 self.g.add_edge(n_id, f_of[r_index])
                 
                 # temporarily store the r index and fitness values
-                temp_fitness.append((r_index, survival[r_index]))
-                
+                temp_fitness.append((r_index, fitness[r_index]))
+                                
                 # temporarily reduce probability to 0, so it won't be chosen
-                # again
-                survival[r_index] = 0
+                # again, also substract from the sum of fake probabilities
+                max_sum -= fitness[r_index]
+                fitness[r_index] = 0
+                
 
             # restore the fitness array after adding the edges
             for r_index, val in temp_fitness:
-                survival[r_index] = val
+                fitness[r_index] = val
+                max_sum += val
 
-    def choose_r_index(self):
-        s = self.survival
-        max = sum(s)
-        picked_value = random.uniform(0, max)
-        
-        current_value = 0
-        for index in range(0,len(s)):
-            current_value += s[index]
-            if current_value > picked_value:
-                return index
-        
-        return len(s) - 1
-
-    def attrition(self):
-        g = self.g
-        size = len(g)
-
-        # in Steve's code he uses int, casting, instead of round
-        for i in range(0,round(size*self.X)):       
+    
+    def choose_r_index(self, s, max_sum):
+        if (max_sum == 0):
+            return self.g.node[random.choice(self.node_set)]['r_index']
+        else:
+            picked_value = random.uniform(0, max_sum)
             
+            current_value = 0
+            for index in range(len(s)):
+                current_value += s[index]
+                if current_value > picked_value:
+                    return index
+            
+            return len(s) - 1
+
+
+    def attrition(self, select_winners):
+        g = self.g
+
+        winners = select_winners()
+        
+        for winner in winners:    
+            # remove the node from the graph and update fitness arrays
+            r_index = g.node[winner]['r_index']
+            self.fitness_of[r_index] = -1
+            self.free_indexes.append(r_index)
+            self.node_set.discard(winner)
+            g.remove_node(winner)
+            self.size -= 1
+        
+        to_remove = []
+        for n, adj in g.adj.items():
+            if (len(adj) == 0):
+                to_remove.append(n)
+        
+        for n in to_remove:
+            r_index = g.node[n]['r_index']
+            self.fitness_of[r_index] = -1
+            self.free_indexes.append(r_index)
+            self.node_set.discard(n)
+            g.remove_node(n)
+            self.size -= 1
+
+    def tornament_least_fit(self):  
+        f_of = self.fitness_of
+        f = self.fitness
+        node_set = self.node_set
+        g = self.g
+        
+        winners = []
+        for i in range(round(self.size*self.X)):
+
             # avoid repetitions randomly select the participants
-            tombola = random.sample(g.nodes(data=True), round(size*self.tourn))
-                      
+            tombola = random.sample(node_set,round(self.size*self.tourn))
+
             # search for the "winners" (or really "losers")
             min_fit = float("inf")
             ties = []
             for t in tombola:
-                cur_fit = self.fitness[t[1]['r_index']]
+                cur_fit = f[g.node[t]['r_index']]
                 if cur_fit < min_fit:
                     min_fit = cur_fit
                     ties=[t]
                 elif cur_fit == min_fit:
                     ties.append(t)
-
+    
             # in case of tie, select one randomly
-            winner = random.choice(ties)
+            w = random.choice(ties)
+            winners.append(w)
+            # we already know this node won't exist,
+            # so we can remove it forever
+            f_of[g.node[w]['r_index']] = -1
+            node_set.discard(w)
+
+        return winners
+    
+    def tornament_fittest(self):
+        f_of = self.fitness_of
+        f = self.fitness
+        node_set = self.node_set
+        g = self.g
+        
+        winners = []
+        for i in range(round(self.size*self.X)):
+
+            # avoid repetitions randomly select the participants
+            tombola = random.sample(node_set,round(self.size*self.tourn))
+
+            # search for the "winners" (or really "losers")
+            max_fit = -1
+            ties = []
+            for t in tombola:
+                cur_fit = f[g.node[t]['r_index']]
+                if cur_fit > max_fit:
+                    max_fit = cur_fit
+                    ties=[t]
+                elif cur_fit == max_fit:
+                    ties.append(t)
+    
+            # in case of tie, select one randomly
+            w = random.choice(ties)
+            winners.append(w)
+            # we already know this node won't exist,
+            # so we can remove it forever
+            f_of[g.node[w]['r_index']] = -1
+            node_set.discard(w)
+
+        return winners
+
+
+    def at_random(self):
+        return random.sample(self.node_set,round(self.size*self.X))
+
+
+    def least_fit(self):  
+        f_of = self.fitness_of
+        f = self.fitness
+        node_set = self.node_set
+        g = self.g
+        
+        sorted_fit = SortedDict()
+        for i in range(self._max):
+            if f_of[i] != -1:
+                if f[i] in sorted_fit:
+                    sorted_fit[f[i]].append(f_of[i])
+                else:
+                    sorted_fit[f[i]] = [f_of[i]]
+    
+        shrink_size = round(self.size*self.X)
+        winners = []
+        for key,value in sorted_fit.items():
+            if len(value) + len(winners) < shrink_size:
+                winners.extend(value) 
+            elif len(value) + len(winners) == shrink_size:
+                winners.extend(value)
+                break
+            else:
+                for v in value:
+                    winners.append(v)
+                    if len(winners) == shrink_size:
+                        break
+                break
             
-            # remove the node from the graph and update fitness arrays
-            r_index = winner[1]['r_index']
-            self.fitness_of[r_index] = -1
-            self.survival[r_index] = 0
-            self.free_indexes.append(r_index)
-            g.remove_node(winner[0])
+        return winners
 
+
+    def fittest(self):  
+        f_of = self.fitness_of
+        f = self.fitness
+        node_set = self.node_set
+        g = self.g
+        
+        sorted_fit = SortedDict()
+        for i in range(self._max):
+            if f_of[i] != -1:
+                if f[i] in sorted_fit:
+                    sorted_fit[f[i]].append(f_of[i])
+                else:
+                    sorted_fit[f[i]] = [f_of[i]]
+    
+        shrink_size = round(self.size*self.X)
+        winners = []
+        for key in reversed(sorted_fit):
+            value = sorted_fit[key]
+            if len(value) + len(winners) < shrink_size:
+                winners.extend(value) 
+            elif len(value) + len(winners) == shrink_size:
+                winners.extend(value)
+                break
+            else:
+                for v in value:
+                    winners.append(v)
+                    if len(winners) == shrink_size:
+                        break
+                break
             
-        components = list(nx.connected_component_subgraphs(g))
-  
-        # Remove isolated nodes
-        for i in range(0, len(components)):
-            if len(components[i]) == 1:
-                for n in components[i].nodes(data = True):
-                    r_index = n[1]['r_index']
-                    self.fitness_of[r_index] = -1
-                    # important to clean because it is not reinitialized as fitness
-                    self.survival[r_index] = 0
-                    self.free_indexes.append(r_index)
-                    g.remove_node(n[0])
+        return winners
 
-        #REMOVE ALL ISOLATED SUBGRAPHS
-#         for i in range(1, len(components)):
-#             for n in components[i].nodes(data = True):
-#                 r_index = n[1]['r_index']
-#                 self.fitness_of[r_index] = -1
-#                 # important to clean because it is not reinitialized as fitness
-#                 self.survival[r_index] = 0
-#                 self.free_indexes.append(r_index)
-#                 
-#         self.g = components[0]
-
-    def print_results(self, id, treatment, b, ave):
-        coop = self.count_coop()
-        print(id,",",treatment,",",b,",",coop,",",len(self.g),",",ave)
 
 
     def count_coop(self):
         coop = 0 
-        for i in self.g.nodes(data=True):
-            if i[1]['nst'] == self.__class__.COOP:
+        for key, value in self.g.node.items():
+            if value['nst'] == self.__class__.COOP:
                 coop += 1
         return coop
-
-    def draw_random(self):
-        nx.draw(self.g)
-        plt.show()
-        
-    def draw(self):
-        G=self.g
-        # find node with largest degree
-        node_and_degree=G.degree()
-        (largest_hub,degree)=sorted(node_and_degree.items(),key=itemgetter(1))[-1]
-        # Create ego graph of main hub
-        hub_ego=nx.ego_graph(G,largest_hub)
-        # Draw graph
-        pos=nx.spring_layout(hub_ego)
-        nx.draw(hub_ego,pos,node_color='b',node_size=50,with_labels=False)
-        # Draw ego as large and red
-        nx.draw_networkx_nodes(hub_ego,pos,nodelist=[largest_hub],node_size=300,node_color='r')
-        plt.savefig('ego_graph.png')
-        plt.show()
