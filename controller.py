@@ -125,8 +125,13 @@ class ExperimentController():
                                         else:
                                             growth = sn.growth_epa
                                         
-                                        self.start(sn, seed[0], g + att + "(" + s + ")", 
-                                                   growth, runner, selection, csvw) 
+                                        self.start(sn=sn, 
+                                                   rep=seed[0], 
+                                                   alg=g + att + "("+s+")", 
+                                                   growth_method=growth, 
+                                                   runner=runner, 
+                                                   selection_method=selection,
+                                                   csv_writer=csvw) 
                             else:
                                 runner = self.run_without_attrition
                                 
@@ -140,8 +145,13 @@ class ExperimentController():
                                 else:
                                     growth = sn.growth_epa
                                 
-                                self.start(sn, seed[0], g, growth, runner, 
-                                    None, csvw) 
+                                self.start(sn=sn, 
+                                           rep=seed[0], 
+                                           alg=g, 
+                                           growth_method=growth, 
+                                           runner=runner, 
+                                           selection_method=None,
+                                           csv_writer=csvw) 
                 fp.flush()
         fp.close()
 

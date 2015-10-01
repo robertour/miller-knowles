@@ -46,6 +46,7 @@ class SocialNetwork(object):
         if randomseed == None:
             self.randomseed = time.time()
         else:
+            print("WARNING: random seed is not null. Are you sure?")
             self.randomseed = randomseed
         random.seed(self.randomseed)
         
@@ -135,7 +136,7 @@ class SocialNetwork(object):
         for n, adj in g.adj.items():
             if (len(adj) == 0):
                 to_remove.append(n)
-        
+                
         for n in to_remove:
             r_index = g.node[n]['r_index']
             self.fitness_of[r_index] = -1
@@ -206,9 +207,10 @@ class SocialNetwork(object):
                     #           ----------------------------------------
                     #               b * max[k_focal_node, k_neighbour]
                     
-                    if random.random() < (1.0 * (r_n2 - r_n1) / \
-                         self.b * max(len(neighbors_n1), \
-                                      len(g.neighbors(n2_index)))):
+                    if random.random() < \
+                            (1.0 * (r_n2 - r_n1)) / \
+                            (self.b * max(len(neighbors_n1), \
+                            len(g.neighbors(n2_index)))):
                         # update the strategy to a temporary vector
                         n1[1]['nst'] = n2['st']
 
@@ -257,6 +259,12 @@ class SocialNetwork(object):
         
         # temporary holder for fitness values and indexes 
         temp_fitness = []
+        
+        # this are the existent nodes before the growth process
+        # miller's nodes doesn't attach to new nodes, that hasn't
+        # play yet
+        range_of_existent_nodes = range(len(node_set))        
+         
                 
         for i in range(self.n_per_gen):
             
@@ -264,13 +272,13 @@ class SocialNetwork(object):
             n_id = self.add_node(random.choice(self.__class__.strategies))
             
             # select the nodes to be connected with            
-            selected = random.sample(node_set,self.e_per_gen)
+            selected = random.sample(range_of_existent_nodes,self.e_per_gen)
             
             # connect the node to e_per_gen nodes (edges)
-            for node in selected:
+            for node_index in selected:
           
                 # add the edge
-                g.add_edge(n_id, node)
+                g.add_edge(n_id, node_set[node_index])
                 
     
     def growth_epa(self):
