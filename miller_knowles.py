@@ -1,9 +1,9 @@
 import random
+import time
 import csv
 
-from sortedcontainers import SortedList, SortedSet, SortedDict
+from sortedcontainers import SortedSet, SortedDict
 
-from operator import itemgetter
 import networkx as nx
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,59 +11,162 @@ import numpy as np
 from games import PD
 from networkx.classes.function import neighbors
 from astropy.units import count
+from networkx.classes import graph
+from networkx.classes.graph import Graph
+
+from variables import *
 
 class SocialNetwork(object):
-    COOP = 'C'
-    DEFE = 'D'
-    strategies = ['C', 'D']
+    ID = 0
+    
+    strategies = [COOP, DEFE]
 
-    def __init__(self, b=1, n_per_gen=10, e_per_gen=2, epsilon=.99, max=1000,
-                 tourn=0.01, X=0.025):
+    def __init__(self, 
+                 network_seed,
+                 network_seed_desc,
+                 network_randomseed,
+                 coop_prob = JUST_COOPERATORS,
+                 randomseed = None,
+                 b=1,                   
+                 n_per_gen=10, 
+                 e_per_gen=2, 
+                 max=1000, 
+                 tourn=0.01, 
+                 X=0.025):
+
+        # this is for identification of the network
+        self.id = self.__class__.ID
+        self.__class__.ID += 1     
+        self.network_seed_desc = network_seed_desc
+        self.network_randomseed = network_randomseed  
+        self.coop_prob = coop_prob               
+        
+        # seed for the network, this is useful to replicate exactly the same
+        # experiment, particularly useful for debugging
+        if randomseed == None:
+            self.randomseed = time.time()
+        else:
+            self.randomseed = randomseed
+        random.seed(self.randomseed)
+        
+        # main parameters
         self.b = b
         self.n_per_gen = n_per_gen
         self.e_per_gen = e_per_gen
-        self.epsilon = epsilon
         self.max = max
         self.tourn = tourn
         self.X = X
         
+        # counters
         self.gen = 0
         self.count = 0
         self.cooperators = 0
+        self.removed_nodes = 0
         self.size = 0
         g = self.g = nx.Graph()
 
+        # crate auxiliary network structures to increase efficiency
         self._max = max+n_per_gen
         self.fitness = np.empty(self._max)
         self.fitness_of = np.empty(self._max, dtype=np.int_)
         self.free_indexes = []
         self.node_set = SortedSet()
         
+        # initialize the auxiliary structures
         for i in range(0, self._max):
             self.fitness_of[i] = -1
             self.free_indexes.append(i)
-
-        self.add_node(self.__class__.COOP, self.gen)
-        self.add_node(self.__class__.COOP, self.gen)
-        self.add_node(self.__class__.COOP, self.gen)
+       
+        # create the network 
+        self.__create_from_seed(network_seed, coop_prob)
         
-        g.add_edge(0, 1)
-        g.add_edge(0, 2)
-        g.add_edge(1, 2)
-        
+        # define the game the nodes are going to play
         self.game = PD(b, self.fitness)
 
 
-    def add_node(self, st, gen):
+    def __create_from_seed(self, seed, coop_prob):
+        """ This method use the networks structure that comes in the parameter 
+        seed as a template for the graph. It adds the necessary attributes to 
+        run the algorithm, such as which nodes are cooperators and defectors 
+        based on the coop_prob parameter. A value from 0 to 1 indicating a 
+        probability of any node of being a cooperators.
+        
+        Assumes that it is called from the constructor. So it assumes a new 
+        SocialNetwork.
+        """   
+        self.count = -1
+        g = self.g
+        
+        # add nodes from the seed to the network 
+        for node in seed.nodes_iter(data = True):
+            # define the attributes of the node 
+            id = node[0]          
+            if coop_prob == 1 or random.uniform(0,1) < coop_prob:
+                st = COOP
+                self.cooperators += 1
+            else:
+                st = DEFE
+            r_index = self.free_indexes.pop()   
+            
+            # add the node
+            g.add_node(id, st=st, nst=st, r_index=r_index)
+            
+            self.node_set.add(id)
+            self.fitness_of[r_index] = id
+            self.fitness[r_index] = 0
+            
+            # update parameters of the graph
+            if id > self.count: 
+                self.count = id
+            self.size += 1
+
+        self.count += 1
+        
+        # add edges from the seed to the network
+        for e0, e1 in seed.edges_iter():
+            g.add_edge(e0, e1)
+            
+        self.__remove_isolated_nodes()
+        
+    
+    def __remove_isolated_nodes(self):
+        g = self.g
+        to_remove = []
+        for n, adj in g.adj.items():
+            if (len(adj) == 0):
+                to_remove.append(n)
+        
+        for n in to_remove:
+            r_index = g.node[n]['r_index']
+            self.fitness_of[r_index] = -1
+            self.free_indexes.append(r_index)
+            self.node_set.discard(n)
+            g.remove_node(n)
+            self.size -= 1
+    
+    def add_node(self, st):
+        """ Add a node to the network
+        """
+        # calculate rest of the node attributes
         id = self.count
         r_index = self.free_indexes.pop()
-        self.g.add_node(id, st=st, nst=st, r_index=r_index, gen=gen)
+        
+        # add node
+        self.g.add_node(id, st=st, nst=st, r_index=r_index, gen=self.gen)
+        
+        # update network structures
         self.node_set.add(id)
         self.fitness_of[r_index] = id
         self.fitness[r_index] = 0
+        
+        # update network parameters
+        if st == COOP:
+            self.cooperators += 1
         self.size += 1
         self.count += 1
+        
         return id
+
 
     def play_games(self):
         g = self.g
@@ -110,30 +213,41 @@ class SocialNetwork(object):
                         n1[1]['nst'] = n2['st']
 
                     
-                    # Poncela´s Formula gives to much weight to the number 
-                    # of nodes, this is an alternate version
-                    # probability P = neighbour_fitness   focal_node_fitness
-                    #                 ------------------ - -----------------
-                    #                  b * k_neighbour      b * k_focal_node
+                    """
+                    Poncela´s Formula gives to much weight to the number 
+                    of nodes, this is an alternate version that would be
+                    worth to test:
+                      
+                    probability P = neighbour_fitness   focal_node_fitness
+                                    ------------------ - -----------------
+                                     b * k_neighbour      b * k_focal_node
 
-                    # if random.random() < (1.0 * r_n2) / \
-                    # (self.b*len(g.neighbors(n2_index)))- \
-                    # (1.0 * r_n1) / \
-                    # (self.b*len(neighbors_n1)):
-                    # n1[1]['nst'] = n2['st']
+                    
+                    if random.random() < (1.0 * r_n2) / \
+                                         (self.b*len(g.neighbors(n2_index)))-\
+                                         (1.0 * r_n1) / \
+                                         (self.b*len(neighbors_n1)):
+                     n1[1]['nst'] = n2['st']
+                     """
             
-            # update coop counter
-            if n1[1]['nst'] == self.__class__.COOP:
+            # update cooperators counter
+            if n1[1]['nst'] == COOP:
                 cooperators += 1
                 
         self.cooperators = cooperators
     
+    
     def growth_initial(self, growth):
+        """ This method make sure that the first growth completes the nodes
+        necessary to get to a consistent increment of 10 per generation. It
+        just applies for starting networks that are smaller than self.n_per_gen 
+        """
         if self.size < self.n_per_gen:
             temp = self.n_per_gen
             self.n_per_gen = self.n_per_gen - self.count
             growth()
             self.n_per_gen = temp
+
 
     def growth_cra(self):
         f_of = self.fitness_of
@@ -147,8 +261,7 @@ class SocialNetwork(object):
         for i in range(self.n_per_gen):
             
             # add the node to the network
-            n_id = self.add_node(random.choice(self.__class__.strategies), 
-                                 self.gen)
+            n_id = self.add_node(random.choice(self.__class__.strategies))
             
             # select the nodes to be connected with            
             selected = random.sample(node_set,self.e_per_gen)
@@ -164,21 +277,22 @@ class SocialNetwork(object):
         f_of = self.fitness_of
         fitness = self.fitness
         
-        # TODO this should innecessary !!!!!!!
-        # calculate probabilities
-        #survival[f_of != -1] = 1 - self.epsilon + \
-        #                       self.epsilon * self.fitness[f_of != -1]
+        """
+        Poncela et. al suggested to use an epsilon of 0.99. No reason is 
+        given, but we assumed it is to avoid divisions by 0. However, this 
+        is an unnecessary expensive calculation. We avoid this by using the
+        __choice_r_index
+        survival[f_of != -1] = 1 - 0.99 + \
+                              0.99 * self.fitness[f_of != -1]     
+        survival /= sum(survival[f_of != -1])
+        """
         
-        
-        #survival /= sum(survival[f_of != -1])
-        max_sum = sum(fitness[f_of != -1])
-        
+        max_sum = sum(fitness[f_of != -1])        
                         
         for i in range(self.n_per_gen):
             
             # add the node to the network
-            n_id = self.add_node(random.choice(self.__class__.strategies), 
-                                 self.gen)
+            n_id = self.add_node(random.choice(self.__class__.strategies))
         
             temp_fitness = []
                 
@@ -186,7 +300,7 @@ class SocialNetwork(object):
             for e in range(self.e_per_gen):
                 
                 # get the winner fitness index
-                r_index = self.choose_r_index(fitness, max_sum)
+                r_index = self.__choose_r_index(fitness, max_sum)
                                 
                 # add the edge
                 self.g.add_edge(n_id, f_of[r_index])
@@ -197,8 +311,7 @@ class SocialNetwork(object):
                 # temporarily reduce probability to 0, so it won't be chosen
                 # again, also substract from the sum of fake probabilities
                 max_sum -= fitness[r_index]
-                fitness[r_index] = 0
-                
+                fitness[r_index] = 0                
 
             # restore the fitness array after adding the edges
             for r_index, val in temp_fitness:
@@ -206,7 +319,7 @@ class SocialNetwork(object):
                 max_sum += val
 
     
-    def choose_r_index(self, s, max_sum):
+    def __choose_r_index(self, s, max_sum):
         if (max_sum == 0):
             return self.g.node[random.choice(self.node_set)]['r_index']
         else:
@@ -236,9 +349,11 @@ class SocialNetwork(object):
             self.size -= 1
         
         to_remove = []
+
         for n, adj in g.adj.items():
             if (len(adj) == 0):
                 to_remove.append(n)
+                self.removed_nodes += 1
         
         for n in to_remove:
             r_index = g.node[n]['r_index']
@@ -335,7 +450,8 @@ class SocialNetwork(object):
     
         shrink_size = round(self.size*self.X)
         winners = []
-        for key,value in sorted_fit.items():
+        for key in iter(sorted_fit):
+            value = sorted_fit[key]
             if len(value) + len(winners) < shrink_size:
                 winners.extend(value) 
             elif len(value) + len(winners) == shrink_size:
@@ -347,7 +463,7 @@ class SocialNetwork(object):
                     if len(winners) == shrink_size:
                         break
                 break
-            
+        
         return winners
 
 
@@ -388,6 +504,6 @@ class SocialNetwork(object):
     def count_coop(self):
         coop = 0 
         for key, value in self.g.node.items():
-            if value['nst'] == self.__class__.COOP:
+            if value['nst'] == COOP:
                 coop += 1
         return coop
