@@ -7,6 +7,7 @@ from sortedcontainers import SortedSet, SortedDict
 import networkx as nx
 import matplotlib.pyplot as plt
 import numpy as np
+np.set_printoptions(threshold=np.nan)
 
 from games import PD
 from networkx.classes.function import neighbors
@@ -252,13 +253,9 @@ class SocialNetwork(object):
 
 
     def growth_cra(self):
-        f_of = self.fitness_of
         g = self.g
-        node = g.node
         node_set = self.node_set
-        
-        # temporary holder for fitness values and indexes 
-        temp_fitness = []
+        e_per_gen = self.e_per_gen
         
         # this are the existent nodes before the growth process
         # miller's nodes doesn't attach to new nodes, that hasn't
@@ -272,7 +269,7 @@ class SocialNetwork(object):
             n_id = self.add_node(random.choice(self.__class__.strategies))
             
             # select the nodes to be connected with            
-            selected = random.sample(range_of_existent_nodes,self.e_per_gen)
+            selected = random.sample(range_of_existent_nodes,e_per_gen)
             
             # connect the node to e_per_gen nodes (edges)
             for node_index in selected:
@@ -294,39 +291,112 @@ class SocialNetwork(object):
                               0.99 * self.fitness[f_of != -1]     
         survival /= sum(survival[f_of != -1])
         """
+        g = self.g
+        n_per_gen = self.n_per_gen
+        e_per_gen = self.e_per_gen
         
-        max_sum = sum(fitness[f_of != -1])        
+        elegible_nodes = SortedSet()
+        counter_elegible = 0
+        max_sum = 0
+        for i in range(self._max):
+            if f_of[i] != -1:
+                if fitness[i] > 0:
+                    max_sum += fitness[i]
+                    counter_elegible += 1
+                    if counter_elegible <= e_per_gen:
+                        elegible_nodes.add(f_of[i])
+        #max_sum = sum(fitness[f_of != -1])
+        
+        if counter_elegible > n_per_gen:         
                         
-        for i in range(self.n_per_gen):
+            for i in range(n_per_gen):
+                
+                # add the node to the network
+                n_id = self.add_node(random.choice(self.__class__.strategies))
             
-            # add the node to the network
-            n_id = self.add_node(random.choice(self.__class__.strategies))
-        
-            temp_fitness = []
-                
-            # connect the node to e_per_gen nodes (edges)
-            for e in range(self.e_per_gen):
-                
-                # get the winner fitness index
-                r_index = self.__choose_r_index(fitness, max_sum)
-                                
-                # add the edge
-                self.g.add_edge(n_id, f_of[r_index])
-                
-                # temporarily store the r index and fitness values
-                temp_fitness.append((r_index, fitness[r_index]))
-                                
-                # temporarily reduce probability to 0, so it won't be chosen
-                # again, also substract from the sum of fake probabilities
-                max_sum -= fitness[r_index]
-                fitness[r_index] = 0                
-
-            # restore the fitness array after adding the edges
-            for r_index, val in temp_fitness:
-                fitness[r_index] = val
-                max_sum += val
-
+                temp_fitness = []
+                    
+                # connect the node to e_per_gen nodes (edges)
+                for e in range(e_per_gen):
+                    
+                    # get the winner fitness index
+                    r_index = self.__choose_r_index(fitness, max_sum)
+                                    
+                    # add the edge
+                    g.add_edge(n_id, f_of[r_index])
+                    
+                    # temporarily store the r index and fitness values
+                    temp_fitness.append((r_index, fitness[r_index]))
+                                    
+                    # temporarily reduce probability to 0, so it won't be chosen
+                    # again, also substract from the sum of fake probabilities
+                    max_sum -= fitness[r_index]
+                    fitness[r_index] = 0                
     
+                # restore the fitness array after adding the edges
+                for r_index, val in temp_fitness:
+                    fitness[r_index] = val
+                    max_sum += val
+        
+                # if there is no nodes with reward
+        elif counter_elegible == 0:
+            self.growth_cra()
+        
+        elif counter_elegible < n_per_gen:
+            node_set = self.node_set
+            
+            missing = e_per_gen - counter_elegible
+            
+            for i in range(n_per_gen):
+                
+                # add the node to the network
+                n_id = self.add_node(random.choice(self.__class__.strategies))
+                
+                # connect the node to e_per_gen nodes (edges)
+                for node_index in elegible_nodes:
+              
+                    # add the edge
+                    g.add_edge(n_id, node_index)
+            
+                temp_fitness = []   
+                
+                # connect the node to e_per_gen nodes (edges)
+                for e in range(missing):
+                    
+                    # get the winner fitness index
+                    r_index = self.__choose_r_index(fitness, max_sum)
+                                    
+                    # add the edge
+                    g.add_edge(n_id, f_of[r_index])
+                    
+                    # temporarily store the r index and fitness values
+                    temp_fitness.append((r_index, fitness[r_index]))
+                                    
+                    # temporarily reduce probability to 0, so it won't be chosen
+                    # again, also substract from the sum of fake probabilities
+                    max_sum -= fitness[r_index]
+                    fitness[r_index] = 0                
+    
+                # restore the fitness array after adding the edges
+                for r_index, val in temp_fitness:
+                    fitness[r_index] = val
+                    max_sum += val
+        
+        elif counter_elegible == n_per_gen:
+            node_set = self.node_set
+            
+            for i in range(n_per_gen):
+            
+                # add the node to the network
+                n_id = self.add_node(random.choice(self.__class__.strategies))
+                
+                # connect the node to e_per_gen nodes (edges)
+                for node_index in elegible_nodes:
+              
+                    # add the edge
+                    g.add_edge(n_id, node_index)
+            
+
     def __choose_r_index(self, s, max_sum):
         if (max_sum == 0):
             return self.g.node[random.choice(self.node_set)]['r_index']

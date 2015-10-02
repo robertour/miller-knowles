@@ -5,12 +5,19 @@ import timeit
 import csv
 import random
 import networkx as nx
+import powerlaw
 
 from variables import *
 
 from miller_knowles import *
 from networkx_to_gephi import n2g
 from networkx.generators.random_graphs import gnm_random_graph
+from networkx.algorithms.cluster import triangles, transitivity, clustering,\
+    average_clustering
+from networkx.algorithms.shortest_paths.generic import \
+    average_shortest_path_length
+
+
 
 class ExperimentController():
     
@@ -46,30 +53,42 @@ class ExperimentController():
         self.max = max
         self.X = X
     
+        n = int(max*0.95)
         self.seeds = []
         for rep in range(self.REP):        
             for desc in network_seeds:
                 st = time.time()
                 
-                if desc == RANDOM_REGULAR_GRAPH:
-                    network_seed = nx.random_regular_graph(2,max,seed=st)
+                if desc == RANDOM_REGULAR_GRAPH:                    
+                    network_seed = nx.random_regular_graph(2,n,seed=st)
                 elif desc == ERDOS_RENYI:
                     #network_seed = nx.fast_gnp_random_graph(max,1.0/100,seed=st)
-                    # == network_seed = nx.erdos_renyi_graph(1000,0.001,seed=st)
-                    network_seed = gnm_random_graph(max,2*max,seed=st)
+                    # == network_seed = nx.erdos_renyi_graph(1000,0.001,seed=st)                    
+                    network_seed = gnm_random_graph(n,2*n,seed=st)
                 elif desc == BARABASI_ALBERT:
-                    network_seed = nx.barabasi_albert_graph(max,2,seed=st)
+                    network_seed = nx.barabasi_albert_graph(n,2,seed=st)
                 elif desc == WATTS_STROGATZ:
                     # according to wikipedia N >> K >> ln(1000) >> 0.001
                     # network_seed = 
                     # nx.newman_watts_strogatz_graph(1000, 14, 0.001,seed=st)
                     # 7000 edges
-                    network_seed = nx.watts_strogatz_graph(max, 14, 0.01,seed=st) 
+                    network_seed = nx.watts_strogatz_graph(n, 14, 0.01,seed=st) 
                 elif desc == TRIAD:
                     network_seed = nx.random_regular_graph(2,3,seed=st)
                 else:
                     raise ValueError('Not recognized seed')
 
+#                 centrality_dict = nx.degree_centrality(network_seed)
+#                 centrality_list = list(centrality_dict.values())
+#                 centrality_array = np.array(centrality_list)
+#                 centrality_not_norm = centrality_array * 999
+#                 centrality_int = centrality_not_norm.astype(int)
+#                 results = powerlaw.Fit(centrality_int.tolist())
+                
+                #self.plot_degree_distribution(network_seed)
+
+                #import ipdb; ipdb.set_trace()
+                    
                 # add the seed to the seeds list                
                 self.seeds.append ((rep,{'network_seed': network_seed,
                                          'network_seed_desc' : desc,
@@ -86,10 +105,15 @@ class ExperimentController():
         fp = open(filename, 'w', newline='')
         csvw = csv.writer(fp, delimiter=',')
         csvw.writerow(('id','rep','network',
-                       'coop_prob','alg','b','X', 
-                       'removed_nodes', 'gen',
-                       'cooperators','size','ave','real_time',
-                       'network_randomseed', 'randomseed'))
+               'coop_prob','alg','b','X', 
+               'removed_nodes', 'gen',
+               'cooperators','size','ave',
+               'triangles','transitivity',
+               'average_clustering','clustering',
+               'components','size_biggest_component',
+               'ave_short_path_biggest',                       
+               'network_randomseed', 'randomseed',
+               'real_time'))
         fp.flush()
 
         for b in self.b_s:
@@ -175,13 +199,34 @@ class ExperimentController():
         
         if (sn.cooperators != sn.count_coop()):
             import ipdb;ipdb.set_trace()
+            
+        
+        
+        time_of_calcs = time.time()
+        g = sn.g
+                
+        size_biggest_component = -1
+        connected_components = 0
+        ave_short_path_biggest = -1
+        for sg in nx.connected_component_subgraphs(g, False):
+            connected_components += 1
+            if len(sg) > size_biggest_component:
+                size_biggest_component = len(sg)
+                ave_short_path_biggest = average_shortest_path_length(sg)
+        
         
         csv_writer.writerow((sn.id,rep,sn.network_seed_desc,
-                             sn.coop_prob,alg,sn.b,self.X,
+                             sn.coop_prob,alg,sn.b,sn.X,
                              sn.removed_nodes, sn.gen,
-                             sn.cooperators,sn.size,ave,_perf_counter,
-                             sn.network_randomseed, sn.randomseed))
-    
+                             sn.cooperators,sn.size,ave,
+                             triangles(g),transitivity(g),
+                             average_clustering(g),clustering(g),
+                             connected_components, size_biggest_component,
+                             ave_short_path_biggest,
+                             sn.network_randomseed, sn.randomseed,
+                             _perf_counter))
+        
+        print ("final calculations took ", (time.time()-time_of_calcs))
 
     def generate_gephi(self, sn, folder):
         gephidir = os.path.join(self.timedir, "gephi", str(sn.id), folder)
@@ -274,4 +319,26 @@ class ExperimentController():
         # Draw ego as large and red
         nx.draw_networkx_nodes(hub_ego,pos,nodelist=[largest_hub],node_size=300,node_color='r')
         plt.savefig('ego_graph.png')
+        plt.show()
+        
+    def plot_degree_distribution(self, G):
+
+        degree_sequence=sorted(nx.degree(G).values(),reverse=True) # degree sequence
+        #print "Degree sequence", degree_sequence
+        dmax=max(degree_sequence)
+        
+        plt.loglog(degree_sequence,'b-',marker='o')
+        plt.title("Degree rank plot")
+        plt.ylabel("degree")
+        plt.xlabel("rank")
+        
+        # draw graph in inset
+#         plt.axes([0.45,0.45,0.45,0.45])
+#         Gcc=sorted(nx.connected_component_subgraphs(G), key = len, reverse=True)[0]
+#         pos=nx.spring_layout(Gcc)
+#         plt.axis('off')
+#         nx.draw_networkx_nodes(Gcc,pos,node_size=20)
+#         nx.draw_networkx_edges(Gcc,pos,alpha=0.4)
+        
+        plt.savefig("degree_histogram.png")
         plt.show()
