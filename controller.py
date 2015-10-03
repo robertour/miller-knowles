@@ -107,9 +107,8 @@ class ExperimentController():
         csvw.writerow(('id','rep','network',
                'coop_prob','alg','b','X', 
                'removed_nodes', 'gen',
-               'cooperators','size','ave',
-               'triangles','transitivity',
-               'average_clustering','clustering',
+               'cooperators','size','ave','ave2',
+               'transitivity','average_clustering',
                'components','size_biggest_component',
                'ave_short_path_biggest',                       
                'network_randomseed', 'randomseed',
@@ -176,7 +175,7 @@ class ExperimentController():
                                            runner=runner, 
                                            selection_method=None,
                                            csv_writer=csvw) 
-                fp.flush()
+                        fp.flush()
         fp.close()
 
         
@@ -188,45 +187,57 @@ class ExperimentController():
         if self.GEPHI:
             self.generate_gephi(sn, "initial")
 
-        ave = runner(sn, growth_method, selection_method)
+        (ave, ave2) = runner(sn, growth_method, selection_method)
         if self.GEPHI:
             self.generate_gephi(sn, "end")
         
         _perf_counter = round(time.perf_counter() - _perf_counter,2)
         
-        if (sn.size != len(sn.g)):
-            import ipdb;ipdb.set_trace()
-        
-        if (sn.cooperators != sn.count_coop()):
-            import ipdb;ipdb.set_trace()
-            
-        
-        
         time_of_calcs = time.time()
-        g = sn.g
-                
+        _triangles = -1
+        _transitivity = -1
+        _average_clustering = -1
+        _clustering = -1
         size_biggest_component = -1
         connected_components = 0
         ave_short_path_biggest = -1
-        for sg in nx.connected_component_subgraphs(g, False):
-            connected_components += 1
-            if len(sg) > size_biggest_component:
-                size_biggest_component = len(sg)
-                ave_short_path_biggest = average_shortest_path_length(sg)
-        
-        
+        if ave == -1:
+            sn.cooperators = 0
+        else: 
+            if (sn.size != len(sn.g)):
+                import ipdb;ipdb.set_trace()
+            
+            if (sn.cooperators != sn.count_coop()):
+                import ipdb;ipdb.set_trace()
+                
+            
+            g = sn.g
+            _transitivity = transitivity(g)
+            _average_clustering = average_clustering(g)
+            _clustering = clustering(g)
+                    
+            size_biggest_component = -1
+            connected_components = 0
+            ave_short_path_biggest = -1
+            for sg in nx.connected_component_subgraphs(g, False):
+                connected_components += 1
+                if len(sg) > size_biggest_component:
+                    size_biggest_component = len(sg)
+                    ave_short_path_biggest = average_shortest_path_length(sg)
+            
+            
+            
         csv_writer.writerow((sn.id,rep,sn.network_seed_desc,
                              sn.coop_prob,alg,sn.b,sn.X,
                              sn.removed_nodes, sn.gen,
-                             sn.cooperators,sn.size,ave,
-                             triangles(g),transitivity(g),
-                             average_clustering(g),clustering(g),
+                             sn.cooperators,sn.size,ave,ave2,
+                             _transitivity,_average_clustering,
                              connected_components, size_biggest_component,
                              ave_short_path_biggest,
                              sn.network_randomseed, sn.randomseed,
                              _perf_counter))
         
-        print ("final calculations took ", (time.time()-time_of_calcs))
+        print (rep,sn.network_seed_desc,alg," - final calculations took", (time.time()-time_of_calcs))
 
     def generate_gephi(self, sn, folder):
         gephidir = os.path.join(self.timedir, "gephi", str(sn.id), folder)
@@ -246,6 +257,8 @@ class ExperimentController():
                 sn.play_games()
                 sn.update_strategies()
                 growth_method()
+                #if sn.cooperators > 0:
+                #    import ipdb;ipdb.set_trace()
 
 
     def run_without_attrition(self, sn, growth_method, selection_method):    
@@ -267,7 +280,7 @@ class ExperimentController():
         
         if ave > SAMPLE:
             import ipdb; ipdb.set_trace()
-        return ave / SAMPLE
+        return (ave / SAMPLE, ave / SAMPLE)
 
         
     def run_with_attrition(self, sn, growth_method, selection_method):  
@@ -281,24 +294,32 @@ class ExperimentController():
             if(sn.size < POP):
                 growth_method()
             else:
-                sn.attrition(selection_method)  
+                sn.attrition(selection_method)
+                if sn.size < sn.e_per_gen:
+                    return (-1, -1)
         ave = 0.0
+        ave2 = 0.0
         while (sn.gen < GEN):
             sn.play_games()
+            ave2 += sn.cooperators / (1.0 * sn.size)
             sn.update_strategies()
             ave += sn.cooperators / (1.0 * sn.size)
             if(sn.size < POP):
                 growth_method()
             else:
-                sn.attrition(selection_method)     
+                sn.attrition(selection_method)
+                if sn.size < sn.e_per_gen:
+                    return (-1, -1)
+            
         #there is something wrong with this average
         sn.play_games()
+        ave2 += sn.cooperators / (1.0 * sn.size)
         sn.update_strategies()
         ave += sn.cooperators / (1.0 * sn.size)
         
         if ave > SAMPLE:
             import ipdb; ipdb.set_trace()
-        return ave / SAMPLE
+        return (ave / SAMPLE, ave2/SAMPLE)
 
         
     def draw_random(self, sn):

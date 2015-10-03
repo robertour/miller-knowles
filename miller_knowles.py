@@ -307,7 +307,7 @@ class SocialNetwork(object):
                         elegible_nodes.add(f_of[i])
         #max_sum = sum(fitness[f_of != -1])
         
-        if counter_elegible > n_per_gen:         
+        if counter_elegible > e_per_gen:         
                         
             for i in range(n_per_gen):
                 
@@ -342,7 +342,7 @@ class SocialNetwork(object):
         elif counter_elegible == 0:
             self.growth_cra()
         
-        elif counter_elegible < n_per_gen:
+        elif counter_elegible < e_per_gen:
             node_set = self.node_set
             
             missing = e_per_gen - counter_elegible
@@ -382,7 +382,7 @@ class SocialNetwork(object):
                     fitness[r_index] = val
                     max_sum += val
         
-        elif counter_elegible == n_per_gen:
+        elif counter_elegible == e_per_gen:
             node_set = self.node_set
             
             for i in range(n_per_gen):
@@ -433,6 +433,11 @@ class SocialNetwork(object):
                 to_remove.append(n)
                 self.removed_nodes += 1
         
+        if self.size - len(to_remove) < self.e_per_gen:
+            print ("population collapsed with", 
+                   self.count_coop(), "cooperators and",
+                   self.size - self.count_coop(), "defectors" )
+            
         for n in to_remove:
             r_index = g.node[n]['r_index']
             self.fitness_of[r_index] = -1
