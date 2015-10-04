@@ -8,6 +8,7 @@ import networkx as nx
 import powerlaw
 
 from variables import *
+from selection_methods import *
 
 from miller_knowles import *
 from networkx_to_gephi import n2g
@@ -108,15 +109,18 @@ class ExperimentController():
                'coop_prob','alg','b','X', 
                'removed_nodes', 'gen',
                'cooperators','size','ave','ave2',
-               'transitivity','average_clustering',
-               'components','size_biggest_component',
-               'ave_short_path_biggest',                       
+               'ini_transitivity','ini_average_clustering',
+               'ini_components','ini_size_biggest_component',
+               'ini_ave_short_path_biggest',                       
+               'fin_transitivity','fin_average_clustering',
+               'fin_components','fin_size_biggest_component',
+               'fin_ave_short_path_biggest',                       
                'network_randomseed', 'randomseed',
                'real_time'))
         fp.flush()
 
-        for b in self.b_s:
-            for seed in self.seeds:
+        for seed in self.seeds:
+            for b in self.b_s:
                 sn_args = sn_args_base.copy()
                 sn_args.update(seed[1])
                 for cp in self.coop_probs:
@@ -133,15 +137,15 @@ class ExperimentController():
                                                            **sn_args)
                                         
                                         if s == TOURN_LEAST_FIT:
-                                            selection = sn.tornament_least_fit
+                                            selection = tornament_least_fit
                                         elif s == TOURN_FITTEST:
-                                            selection = sn.tornament_fittest
+                                            selection = tornament_fittest
                                         elif s == LEAST_FIT:
-                                            selection = sn.least_fit
+                                            selection = least_fit
                                         elif s == FITTEST:
-                                            selection = sn.fittest
+                                            selection = fittest
                                         else:
-                                            selection = sn.at_random
+                                            selection = at_random
                                                               
                                         if g == "cra":
                                             growth = sn.growth_cra
@@ -186,6 +190,8 @@ class ExperimentController():
         self.start_network(sn,growth_method)
         if self.GEPHI:
             self.generate_gephi(sn, "initial")
+            
+        initial_nc = self.network_structure_calculations(rep, alg, sn)
 
         (ave, ave2) = runner(sn, growth_method, selection_method)
         if self.GEPHI:
@@ -193,14 +199,9 @@ class ExperimentController():
         
         _perf_counter = round(time.perf_counter() - _perf_counter,2)
         
-        time_of_calcs = time.time()
-        _triangles = -1
-        _transitivity = -1
-        _average_clustering = -1
-        _clustering = -1
-        size_biggest_component = -1
-        connected_components = 0
-        ave_short_path_biggest = -1
+        
+        final_nc = (-1,-1,-1,-1,-1)
+        
         if ave == -1:
             sn.cooperators = 0
         else: 
@@ -210,34 +211,46 @@ class ExperimentController():
             if (sn.cooperators != sn.count_coop()):
                 import ipdb;ipdb.set_trace()
                 
-            
-            g = sn.g
-            _transitivity = transitivity(g)
-            _average_clustering = average_clustering(g)
-            _clustering = clustering(g)
-                    
-            size_biggest_component = -1
-            connected_components = 0
-            ave_short_path_biggest = -1
-            for sg in nx.connected_component_subgraphs(g, False):
-                connected_components += 1
-                if len(sg) > size_biggest_component:
-                    size_biggest_component = len(sg)
-                    ave_short_path_biggest = average_shortest_path_length(sg)
-            
-            
+            final_nc = self.network_structure_calculations(rep, alg, sn)
+
             
         csv_writer.writerow((sn.id,rep,sn.network_seed_desc,
                              sn.coop_prob,alg,sn.b,sn.X,
                              sn.removed_nodes, sn.gen,
                              sn.cooperators,sn.size,ave,ave2,
-                             _transitivity,_average_clustering,
-                             connected_components, size_biggest_component,
-                             ave_short_path_biggest,
+                             initial_nc[0],initial_nc[1],initial_nc[2],
+                             initial_nc[3],initial_nc[4],
+                             final_nc[0],final_nc[1],final_nc[2],
+                             final_nc[3],final_nc[4],
                              sn.network_randomseed, sn.randomseed,
                              _perf_counter))
         
+
+
+    def network_structure_calculations(self, rep, alg, sn):
+        time_of_calcs = time.time()
+
+        g = sn.g
+
+        _transitivity = transitivity(g)
+        _average_clustering = average_clustering(g)   
+        size_biggest_component = -1
+        connected_components = 0
+        ave_short_path_biggest = -1
+        
+        for sg in nx.connected_component_subgraphs(g, False):
+            connected_components += 1
+            if len(sg) > size_biggest_component:
+                size_biggest_component = len(sg)
+                ave_short_path_biggest = average_shortest_path_length(sg)
+                
         print (rep,sn.network_seed_desc,alg," - final calculations took", (time.time()-time_of_calcs))
+
+        return (_transitivity,_average_clustering,
+                connected_components, size_biggest_component,
+                ave_short_path_biggest)
+
+
 
     def generate_gephi(self, sn, folder):
         gephidir = os.path.join(self.timedir, "gephi", str(sn.id), folder)
@@ -290,17 +303,20 @@ class ExperimentController():
         
         while (sn.gen <= GEN-SAMPLE):
             sn.play_games()
+            if sn.size < sn.e_per_gen:
+                return (-1, -1)
             sn.update_strategies()
             if(sn.size < POP):
                 growth_method()
             else:
                 sn.attrition(selection_method)
-                if sn.size < sn.e_per_gen:
-                    return (-1, -1)
+
         ave = 0.0
         ave2 = 0.0
         while (sn.gen < GEN):
             sn.play_games()
+            if sn.size < sn.e_per_gen:
+                return (-1, -1)
             ave2 += sn.cooperators / (1.0 * sn.size)
             sn.update_strategies()
             ave += sn.cooperators / (1.0 * sn.size)
@@ -308,10 +324,7 @@ class ExperimentController():
                 growth_method()
             else:
                 sn.attrition(selection_method)
-                if sn.size < sn.e_per_gen:
-                    return (-1, -1)
-            
-        #there is something wrong with this average
+
         sn.play_games()
         ave2 += sn.cooperators / (1.0 * sn.size)
         sn.update_strategies()
@@ -319,6 +332,7 @@ class ExperimentController():
         
         if ave > SAMPLE:
             import ipdb; ipdb.set_trace()
+
         return (ave / SAMPLE, ave2/SAMPLE)
 
         

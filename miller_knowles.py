@@ -2,18 +2,17 @@ import random
 import time
 import csv
 
-from sortedcontainers import SortedSet, SortedDict
-
+from sortedcontainers import SortedSet
 import networkx as nx
+from networkx.classes.function import neighbors
+from networkx.classes import graph
+from networkx.classes.graph import Graph
 import matplotlib.pyplot as plt
 import numpy as np
+from sortedcontainers.sortedlist import SortedList
 np.set_printoptions(threshold=np.nan)
 
 from games import PD
-from networkx.classes.function import neighbors
-from astropy.units import count
-from networkx.classes import graph
-from networkx.classes.graph import Graph
 
 from variables import *
 
@@ -40,7 +39,13 @@ class SocialNetwork(object):
         self.__class__.ID += 1     
         self.network_seed_desc = network_seed_desc
         self.network_randomseed = network_randomseed  
-        self.coop_prob = coop_prob               
+        self.coop_prob = coop_prob
+        
+        # set the PD game
+        self.T = b
+        self.R = 1
+        self.P = 0
+        self.S = 0               
         
         # seed for the network, this is useful to replicate exactly the same
         # experiment, particularly useful for debugging
@@ -73,6 +78,7 @@ class SocialNetwork(object):
         self.fitness_of = np.empty(self._max, dtype=np.int_)
         self.free_indexes = []
         self.node_set = SortedSet()
+        self.elegible_nodes = []
         
         # initialize the auxiliary structures
         for i in range(0, self._max):
@@ -172,14 +178,78 @@ class SocialNetwork(object):
 
     def play_games(self):
         g = self.g
-        nodes = g.node
-        # TODO if restarted with -1 I could avoid the loop over the edges
-        r = self.fitness.fill(0)
+        node = g.node
+        node_set = self.node_set
+        adjacency = self.g.adj
         
-        for e in g.edges_iter():
-            self.game.play(nodes[e[0]], nodes[e[1]])
+        f = self.fitness
+        f.fill(0)
 
+        max_sum = 0
+        elegibles = self.elegible_nodes = []
+        to_remove=[]
+        
+        for n1 in node_set:
+            adj = adjacency[n1]
+            # make sure to remove the nodes that has no more edges
+            if (len(adj) == 0):
+                to_remove.append(n1)
+                self.removed_nodes += 1
+            else:
+                att1 = node[n1]
+                r_index1 = att1['r_index']    
+                
+                #update the strategy
+                n1_e = att1['st'] = att1['nst']
+                                              
+                # play against all the neighbors
+                for n2 in adj.keys():
+                    # make sure to play just once, nodes should be in order
+                                    # make sure all the adjacent nodes are in order
+                    
+                    if (n2 > n1):
+                        att2 = node[n2]
+                        if n1_e == att2['nst']:
+                            if n1_e == COOP:
+                                f[r_index1] += self.R
+                                f[att2['r_index']] += self.R
+                                max_sum += self.R + self.R
+                            else:
+                                f[r_index1] += self.P
+                                f[att2['r_index']] += self.P
+                                max_sum += self.P + self.P
+                        else:
+                            if n1_e == COOP:
+                                f[r_index1] += self.S
+                                f[att2['r_index']] += self.T
+                                max_sum += self.S + self.T
+                            else:
+                                f[r_index1] += self.T
+                                f[att2['r_index']] += self.S
+                                max_sum += self.T + self.S
+                
+                # if it got a reward, then the node is elegible
+                if (f[r_index1]) > 0:
+                    elegibles.append(n1)
+                       
+        self.max_sum = max_sum
+        
+        # population will  collapse
+        if self.size - len(to_remove) < self.e_per_gen:
+            print ("population collapsed with", 
+                   self.count_coop(), "cooperators and",
+                   self.size - self.count_coop(), "defectors" )
 
+        # remove nodes that didn't have any edges            
+        for n in to_remove:
+            r_index = g.node[n]['r_index']
+            self.fitness_of[r_index] = -1
+            self.free_indexes.append(r_index)
+            self.node_set.discard(n)
+            g.remove_node(n)
+            self.size -= 1
+
+        
     def update_strategies(self):
         g = self.g
         self.gen += 1
@@ -280,7 +350,8 @@ class SocialNetwork(object):
     
     def growth_epa(self):
         f_of = self.fitness_of
-        fitness = self.fitness
+        f = self.fitness        
+        node = self.g.node
         
         """
         Poncela et. al suggested to use an epsilon of 0.99. No reason is 
@@ -294,94 +365,118 @@ class SocialNetwork(object):
         g = self.g
         n_per_gen = self.n_per_gen
         e_per_gen = self.e_per_gen
+        elegible_nodes = self.elegible_nodes
+        counter_elegible = len(elegible_nodes)
+        max_sum = self.max_sum
         
-        elegible_nodes = SortedSet()
-        counter_elegible = 0
-        max_sum = 0
-        for i in range(self._max):
-            if f_of[i] != -1:
-                if fitness[i] > 0:
-                    max_sum += fitness[i]
-                    counter_elegible += 1
-                    if counter_elegible <= e_per_gen:
-                        elegible_nodes.add(f_of[i])
-        #max_sum = sum(fitness[f_of != -1])
+        for n in self.node_set:
+            if n not in self.g.adj:
+                
+                print("first")
+                import ipdb; ipdb.set_trace()
+                
+        for n in self.elegible_nodes:
+            if n not in self.node_set:
+                print("second")
+                import ipdb; ipdb.set_trace()
         
+        # CASE 1: there more nodes than required edges
         if counter_elegible > e_per_gen:         
                         
             for i in range(n_per_gen):
                 
                 # add the node to the network
                 n_id = self.add_node(random.choice(self.__class__.strategies))
-            
+                          
+                # keep the temporal nodes already selected
                 temp_fitness = []
                     
                 # connect the node to e_per_gen nodes (edges)
                 for e in range(e_per_gen):
                     
-                    # get the winner fitness index
-                    r_index = self.__choose_r_index(fitness, max_sum)
+                    # pick a random value from 0 to max_fitness
+                    picked_value = random.uniform(0, max_sum)
+                                        
+                    # use the pick value to select a node to connect
+                    current_value = 0
+                    selected_node = -1
+                    for n in elegible_nodes:
+                        current_value += f[node[n]['r_index']]
+                        if current_value > picked_value:
+                            selected_node = n
+                            r_index = node[n]['r_index']
+                            break;
+
+                    if selected_node == -1:
+                        print ("this shouldn't ever happen")
+                        import ipdb; ipdb.set_trace()
                                     
                     # add the edge
-                    g.add_edge(n_id, f_of[r_index])
+                    g.add_edge(n_id, selected_node)
                     
                     # temporarily store the r index and fitness values
-                    temp_fitness.append((r_index, fitness[r_index]))
+                    temp_fitness.append((r_index, f[r_index]))
                                     
-                    # temporarily reduce probability to 0, so it won't be chosen
-                    # again, also substract from the sum of fake probabilities
-                    max_sum -= fitness[r_index]
-                    fitness[r_index] = 0                
+                    # reduce the fitness to 0 so the node won't be selected
+                    # again. also reduce the fitness
+                    max_sum -= f[r_index]
+                    f[r_index] = 0                
     
                 # restore the fitness array after adding the edges
                 for r_index, val in temp_fitness:
-                    fitness[r_index] = val
-                    max_sum += val
+                    f[r_index] = val
+                    
+                # restart the max sum
+                max_sum = self.max_sum
+
         
-                # if there is no nodes with reward
+        # CASE 2: not of the nodes had any reward
         elif counter_elegible == 0:
             self.growth_cra()
         
+        # CASE 3: the number of nodes is less than the required edges
         elif counter_elegible < e_per_gen:
             node_set = self.node_set
             
             missing = e_per_gen - counter_elegible
+            
+            range_of_existent_nodes = range(len(node_set))
             
             for i in range(n_per_gen):
                 
                 # add the node to the network
                 n_id = self.add_node(random.choice(self.__class__.strategies))
                 
-                # connect the node to e_per_gen nodes (edges)
-                for node_index in elegible_nodes:
+                # connect the node to all the elegible nodes
+                for n2 in elegible_nodes:
               
                     # add the edge
-                    g.add_edge(n_id, node_index)
-            
-                temp_fitness = []   
+                    g.add_edge(n_id, n2)
+             
+                # select the rest of the nodes at random
+                for m in range(missing):
                 
-                # connect the node to e_per_gen nodes (edges)
-                for e in range(missing):
+                    # select the remaining nodes to be connected with at random
+                    # from the current node_set            
+                    selected = random.choice(range_of_existent_nodes)    
+     
+                    # if selected is part of the adjacency of i, select a different
+                    # one, probabilistically speaking this should happen almost
+                    # never
+                    t = 0
+                    while selected in self.g.adj[n_id] and t < 100:
+                        selected = random.choice(range_of_existent_nodes)
+                        t += 1
                     
-                    # get the winner fitness index
-                    r_index = self.__choose_r_index(fitness, max_sum)
-                                    
+                    # just to have an idea how often this could happen    
+                    if t < 0:
+                        print ("%d tries to select the missing the node", t)
+                    
                     # add the edge
-                    g.add_edge(n_id, f_of[r_index])
-                    
-                    # temporarily store the r index and fitness values
-                    temp_fitness.append((r_index, fitness[r_index]))
-                                    
-                    # temporarily reduce probability to 0, so it won't be chosen
-                    # again, also substract from the sum of fake probabilities
-                    max_sum -= fitness[r_index]
-                    fitness[r_index] = 0                
-    
-                # restore the fitness array after adding the edges
-                for r_index, val in temp_fitness:
-                    fitness[r_index] = val
-                    max_sum += val
-        
+                    g.add_edge(n_id, node_set[selected])
+                 
+        # CASE 4: the number of elegible nodes is exactly the same as the 
+        # required edges
         elif counter_elegible == e_per_gen:
             node_set = self.node_set
             
@@ -397,26 +492,14 @@ class SocialNetwork(object):
                     g.add_edge(n_id, node_index)
             
 
-    def __choose_r_index(self, s, max_sum):
-        if (max_sum == 0):
-            return self.g.node[random.choice(self.node_set)]['r_index']
-        else:
-            picked_value = random.uniform(0, max_sum)
-            
-            current_value = 0
-            for index in range(len(s)):
-                current_value += s[index]
-                if current_value > picked_value:
-                    return index
-            
-            return len(s) - 1
 
-
-    def attrition(self, select_winners):
+    def attrition(self, selection_method):
         g = self.g
 
-        winners = select_winners()
-        
+        # it should be call losers
+        winners = selection_method(self)
+      
+        # remove the winning nodes
         for winner in winners:    
             # remove the node from the graph and update fitness arrays
             r_index = g.node[winner]['r_index']
@@ -425,7 +508,13 @@ class SocialNetwork(object):
             self.node_set.discard(winner)
             g.remove_node(winner)
             self.size -= 1
+            
+        # I have moved the removal of nodes with no edges to the play_games 
+        # phase to save optimize the code. The auxiliary method remove_isolated
+        # has been created in order to produce real results.
         
+    def remove_isolated(self, select_winners):
+        g = self.g
         to_remove = []
 
         for n, adj in g.adj.items():
@@ -445,142 +534,6 @@ class SocialNetwork(object):
             self.node_set.discard(n)
             g.remove_node(n)
             self.size -= 1
-
-    def tornament_least_fit(self):  
-        f_of = self.fitness_of
-        f = self.fitness
-        node_set = self.node_set
-        g = self.g
-        
-        winners = []
-        for i in range(round(self.size*self.X)):
-
-            # avoid repetitions randomly select the participants
-            tombola = random.sample(node_set,round(self.size*self.tourn))
-
-            # search for the "winners" (or really "losers")
-            min_fit = float("inf")
-            ties = []
-            for t in tombola:
-                cur_fit = f[g.node[t]['r_index']]
-                if cur_fit < min_fit:
-                    min_fit = cur_fit
-                    ties=[t]
-                elif cur_fit == min_fit:
-                    ties.append(t)
-    
-            # in case of tie, select one randomly
-            w = random.choice(ties)
-            winners.append(w)
-            # we already know this node won't exist,
-            # so we can remove it forever
-            f_of[g.node[w]['r_index']] = -1
-            node_set.discard(w)
-
-        return winners
-    
-    def tornament_fittest(self):
-        f_of = self.fitness_of
-        f = self.fitness
-        node_set = self.node_set
-        g = self.g
-        
-        winners = []
-        for i in range(round(self.size*self.X)):
-
-            # avoid repetitions randomly select the participants
-            tombola = random.sample(node_set,round(self.size*self.tourn))
-
-            # search for the "winners" (or really "losers")
-            max_fit = -1
-            ties = []
-            for t in tombola:
-                cur_fit = f[g.node[t]['r_index']]
-                if cur_fit > max_fit:
-                    max_fit = cur_fit
-                    ties=[t]
-                elif cur_fit == max_fit:
-                    ties.append(t)
-    
-            # in case of tie, select one randomly
-            w = random.choice(ties)
-            winners.append(w)
-            # we already know this node won't exist,
-            # so we can remove it forever
-            f_of[g.node[w]['r_index']] = -1
-            node_set.discard(w)
-
-        return winners
-
-
-    def at_random(self):
-        return random.sample(self.node_set,round(self.size*self.X))
-
-
-    def least_fit(self):  
-        f_of = self.fitness_of
-        f = self.fitness
-        node_set = self.node_set
-        g = self.g
-        
-        sorted_fit = SortedDict()
-        for i in range(self._max):
-            if f_of[i] != -1:
-                if f[i] in sorted_fit:
-                    sorted_fit[f[i]].append(f_of[i])
-                else:
-                    sorted_fit[f[i]] = [f_of[i]]
-    
-        shrink_size = round(self.size*self.X)
-        winners = []
-        for key in iter(sorted_fit):
-            value = sorted_fit[key]
-            if len(value) + len(winners) < shrink_size:
-                winners.extend(value) 
-            elif len(value) + len(winners) == shrink_size:
-                winners.extend(value)
-                break
-            else:
-                for v in value:
-                    winners.append(v)
-                    if len(winners) == shrink_size:
-                        break
-                break
-        
-        return winners
-
-
-    def fittest(self):  
-        f_of = self.fitness_of
-        f = self.fitness
-        node_set = self.node_set
-        g = self.g
-        
-        sorted_fit = SortedDict()
-        for i in range(self._max):
-            if f_of[i] != -1:
-                if f[i] in sorted_fit:
-                    sorted_fit[f[i]].append(f_of[i])
-                else:
-                    sorted_fit[f[i]] = [f_of[i]]
-    
-        shrink_size = round(self.size*self.X)
-        winners = []
-        for key in reversed(sorted_fit):
-            value = sorted_fit[key]
-            if len(value) + len(winners) < shrink_size:
-                winners.extend(value) 
-            elif len(value) + len(winners) == shrink_size:
-                winners.extend(value)
-                break
-            else:
-                for v in value:
-                    winners.append(v)
-                    if len(winners) == shrink_size:
-                        break
-                break
-            
-        return winners
 
 
 
