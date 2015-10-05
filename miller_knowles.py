@@ -30,6 +30,7 @@ class SocialNetwork(object):
                  b=1,                   
                  n_per_gen=10, 
                  e_per_gen=2, 
+                 epsilon = 0.99,
                  max=1000, 
                  tourn=0.01, 
                  X=0.025):
@@ -60,6 +61,12 @@ class SocialNetwork(object):
         self.b = b
         self.n_per_gen = n_per_gen
         self.e_per_gen = e_per_gen
+        if (epsilon >= 1.0):
+            raise ValueError("""Epsilon cannot be bigger or equal to 1.0.
+                             You can use epsilon that are similar to 1.0, 
+                             e.g 0.999999999 """)
+        else:
+            self.epsilon = epsilon
         self.max = max
         self.tourn = tourn
         self.X = X
@@ -69,16 +76,18 @@ class SocialNetwork(object):
         self.count = 0
         self.cooperators = 0
         self.removed_nodes = 0
+        self.total_fit = 0
+        self.total_efit = 0
         self.size = 0
         g = self.g = nx.Graph()
 
         # crate auxiliary network structures to increase efficiency
         self._max = max+n_per_gen
+        self.eps_fitness = np.empty(self._max)
         self.fitness = np.empty(self._max)
         self.fitness_of = np.empty(self._max, dtype=np.int_)
         self.free_indexes = []
         self.node_set = SortedSet()
-        self.elegible_nodes = []
         
         # initialize the auxiliary structures
         for i in range(0, self._max):
@@ -181,12 +190,14 @@ class SocialNetwork(object):
         node = g.node
         node_set = self.node_set
         adjacency = self.g.adj
-        
         f = self.fitness
+        ef = self.eps_fitness
+        eps = self.epsilon
+                
         f.fill(0)
 
-        max_sum = 0
-        elegibles = self.elegible_nodes = []
+        total_fit = 0
+        total_efit = 0
         to_remove=[]
         
         for n1 in node_set:
@@ -213,26 +224,29 @@ class SocialNetwork(object):
                             if n1_e == COOP:
                                 f[r_index1] += self.R
                                 f[att2['r_index']] += self.R
-                                max_sum += self.R + self.R
+                                total_fit += self.R + self.R
                             else:
                                 f[r_index1] += self.P
                                 f[att2['r_index']] += self.P
-                                max_sum += self.P + self.P
+                                total_fit += self.P + self.P
                         else:
                             if n1_e == COOP:
                                 f[r_index1] += self.S
                                 f[att2['r_index']] += self.T
-                                max_sum += self.S + self.T
+                                total_fit += self.S + self.T
                             else:
                                 f[r_index1] += self.T
                                 f[att2['r_index']] += self.S
-                                max_sum += self.T + self.S
+                                total_fit += self.T + self.S
                 
-                # if it got a reward, then the node is elegible
-                if (f[r_index1]) > 0:
-                    elegibles.append(n1)
+                # this epsilon is important to give some of the nodes 
+                # some chance to cooperate
+                ef[r_index1] = 1 - eps + eps * f[r_index1]
+                total_efit += ef[r_index1] 
                        
-        self.max_sum = max_sum
+        # set the class attribute
+        self.total_fit = total_fit
+        self.total_efit = total_efit
         
         # population will  collapse
         if self.size - len(to_remove) < self.e_per_gen:
@@ -350,8 +364,9 @@ class SocialNetwork(object):
     
     def growth_epa(self):
         f_of = self.fitness_of
-        f = self.fitness        
+        ef = self.eps_fitness     
         node = self.g.node
+        node_set = self.node_set
         
         """
         Poncela et. al suggested to use an epsilon of 0.99. No reason is 
@@ -365,131 +380,54 @@ class SocialNetwork(object):
         g = self.g
         n_per_gen = self.n_per_gen
         e_per_gen = self.e_per_gen
-        elegible_nodes = self.elegible_nodes
-        counter_elegible = len(elegible_nodes)
-        max_sum = self.max_sum
+        total_efit = self.total_efit
         
-        for n in self.node_set:
-            if n not in self.g.adj:
+        for i in range(n_per_gen):
+            
+            # add the node to the network
+            n_id = self.add_node(random.choice(self.__class__.strategies))
+                      
+            # keep the temporal nodes already selected
+            temp_efitness = []
                 
-                print("first")
-                import ipdb; ipdb.set_trace()
+            # connect the node to e_per_gen nodes (edges)
+            for e in range(e_per_gen):
                 
-        for n in self.elegible_nodes:
-            if n not in self.node_set:
-                print("second")
-                import ipdb; ipdb.set_trace()
-        
-        # CASE 1: there more nodes than required edges
-        if counter_elegible > e_per_gen:         
-                        
-            for i in range(n_per_gen):
-                
-                # add the node to the network
-                n_id = self.add_node(random.choice(self.__class__.strategies))
-                          
-                # keep the temporal nodes already selected
-                temp_fitness = []
-                    
-                # connect the node to e_per_gen nodes (edges)
-                for e in range(e_per_gen):
-                    
-                    # pick a random value from 0 to max_fitness
-                    picked_value = random.uniform(0, max_sum)
-                                        
-                    # use the pick value to select a node to connect
-                    current_value = 0
-                    selected_node = -1
-                    for n in elegible_nodes:
-                        current_value += f[node[n]['r_index']]
-                        if current_value > picked_value:
-                            selected_node = n
-                            r_index = node[n]['r_index']
-                            break;
-
-                    if selected_node == -1:
-                        print ("this shouldn't ever happen")
-                        import ipdb; ipdb.set_trace()
+                # pick a random value from 0 to max_fitness
+                picked_value = random.uniform(0, total_efit)
                                     
-                    # add the edge
-                    g.add_edge(n_id, selected_node)
-                    
-                    # temporarily store the r index and fitness values
-                    temp_fitness.append((r_index, f[r_index]))
-                                    
-                    # reduce the fitness to 0 so the node won't be selected
-                    # again. also reduce the fitness
-                    max_sum -= f[r_index]
-                    f[r_index] = 0                
-    
-                # restore the fitness array after adding the edges
-                for r_index, val in temp_fitness:
-                    f[r_index] = val
-                    
-                # restart the max sum
-                max_sum = self.max_sum
+                # use the pick value to select a node to connect
+                current_value = 0
+                selected_node = -1
+                for n in node_set:
+                    current_value += ef[node[n]['r_index']]
+                    if current_value > picked_value:
+                        selected_node = n
+                        r_index = node[n]['r_index']
+                        break;
+        
+                if selected_node == -1:
+                    print ("this shouldn't ever happen")
+                    import ipdb; ipdb.set_trace()
+                                
+                # add the edge
+                g.add_edge(n_id, selected_node)
+                
+                # temporarily store the r index and fitness values
+                temp_efitness.append((r_index, ef[r_index]))
+                                
+                # reduce the fitness to 0 so the node won't be selected
+                # again. also reduce the fitness
+                total_efit -= ef[r_index]
+                ef[r_index] = 0                
+        
+            # restore the fitness array after adding the edges
+            for r_index, val in temp_efitness:
+                ef[r_index] = val
+                
+            # restart the max sum
+            total_efit = self.total_efit
 
-        
-        # CASE 2: not of the nodes had any reward
-        elif counter_elegible == 0:
-            self.growth_cra()
-        
-        # CASE 3: the number of nodes is less than the required edges
-        elif counter_elegible < e_per_gen:
-            node_set = self.node_set
-            
-            missing = e_per_gen - counter_elegible
-            
-            range_of_existent_nodes = range(len(node_set))
-            
-            for i in range(n_per_gen):
-                
-                # add the node to the network
-                n_id = self.add_node(random.choice(self.__class__.strategies))
-                
-                # connect the node to all the elegible nodes
-                for n2 in elegible_nodes:
-              
-                    # add the edge
-                    g.add_edge(n_id, n2)
-             
-                # select the rest of the nodes at random
-                for m in range(missing):
-                
-                    # select the remaining nodes to be connected with at random
-                    # from the current node_set            
-                    selected = random.choice(range_of_existent_nodes)    
-     
-                    # if selected is part of the adjacency of i, select a different
-                    # one, probabilistically speaking this should happen almost
-                    # never
-                    t = 0
-                    while selected in self.g.adj[n_id] and t < 100:
-                        selected = random.choice(range_of_existent_nodes)
-                        t += 1
-                    
-                    # just to have an idea how often this could happen    
-                    if t < 0:
-                        print ("%d tries to select the missing the node", t)
-                    
-                    # add the edge
-                    g.add_edge(n_id, node_set[selected])
-                 
-        # CASE 4: the number of elegible nodes is exactly the same as the 
-        # required edges
-        elif counter_elegible == e_per_gen:
-            node_set = self.node_set
-            
-            for i in range(n_per_gen):
-            
-                # add the node to the network
-                n_id = self.add_node(random.choice(self.__class__.strategies))
-                
-                # connect the node to e_per_gen nodes (edges)
-                for node_index in elegible_nodes:
-              
-                    # add the edge
-                    g.add_edge(n_id, node_index)
             
 
 

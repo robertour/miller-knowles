@@ -6,11 +6,41 @@ experiment = {
     "GEN" : 2000,
     "SAMPLE" : 20,
     "GEPHI": False,
+    "network_seeds": [TRIAD],
+    "coop_probs": [JUST_DEFECTORS],
+    "growths" : [EPA],
+    "attritions" : [WITH_ATTRITION,
+                    WITHOUT_ATTRITION],
+    "selections" : [TOURN_LEAST_FIT],
+    "max" : 1000,
+    #"b_s" : [1.6,1.9,2.2,2.5],
+    "b_s" : [1.0,1.3,1.6,1.9,2.2],
+    #"b_s" : [1.0,1.5,2.0,2.5,3.0],
+    #"b_s" : [0.4,0.7,1.0,1.3,1.6],
+    "X" : [0.025]
+  },
+  "sn" : { 
+      "n_per_gen" : 10,
+      "e_per_gen" : 2,
+      "tourn" : 0.01,
+      "randomseed" : None,
+    }
+}
+
+
+
+"""
+experiment = { 
+  "controller": {
+    "REP" : 10,
+    "GEN" : 2000,
+    "SAMPLE" : 20,
+    "GEPHI": False,
     "network_seeds": [RANDOM_REGULAR_GRAPH,
                       BARABASI_ALBERT,
                       ERDOS_RENYI],
     "coop_probs": [RANDOM_PLAYERS],
-    "growths" : [CRA],
+    "growths" : [EPA],
     "attritions" : [WITH_ATTRITION,
                     WITHOUT_ATTRITION],
     "selections" : [RANDOM,
@@ -29,7 +59,7 @@ experiment = {
       "randomseed" : None,
     }
 }
-
+"""
 
 """
 experiment = { 
@@ -62,7 +92,7 @@ experiment = {
       "tourn" : 0.01,
       "randomseed" : None,
     }
-}#
+}
 """
 
 """
