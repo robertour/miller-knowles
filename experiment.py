@@ -1,5 +1,6 @@
 from variables import *
 
+"""
 experiment = { 
   "controller": {
     "REP" : 10,
@@ -7,7 +8,7 @@ experiment = {
     "SAMPLE" : 20,
     "GEPHI": False,
     "network_seeds": [TRIAD],
-    "coop_probs": [JUST_DEFECTORS],
+    "coop_probs": [JUST_COOPERATORS],
     "growths" : [EPA],
     "attritions" : [WITH_ATTRITION,
                     WITHOUT_ATTRITION],
@@ -26,10 +27,10 @@ experiment = {
       "randomseed" : None,
     }
 }
-
-
-
 """
+
+
+
 experiment = { 
   "controller": {
     "REP" : 10,
@@ -40,7 +41,8 @@ experiment = {
                       BARABASI_ALBERT,
                       ERDOS_RENYI],
     "coop_probs": [RANDOM_PLAYERS],
-    "growths" : [EPA],
+    "growths" : [EPA,
+                 CRA],
     "attritions" : [WITH_ATTRITION,
                     WITHOUT_ATTRITION],
     "selections" : [RANDOM,
@@ -50,7 +52,7 @@ experiment = {
     #"b_s" : [1.0,1.3,1.6,1.9,2.2],
     "b_s" : [1.0,1.5,2.0,2.5,3.0],
     #"b_s" : [0.4,0.7,1.0,1.3,1.6],
-    "X" : [0.001, 0.005]
+    "X" : [0.005, 0.001]
   },
   "sn" : { 
       "n_per_gen" : 10,
@@ -59,7 +61,7 @@ experiment = {
       "randomseed" : None,
     }
 }
-"""
+
 
 """
 experiment = { 
