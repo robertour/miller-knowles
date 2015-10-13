@@ -1,6 +1,7 @@
 import csv
 from os.path import join
 
+
 def n2g(g, directory):
         
     nodeslist = []

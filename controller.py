@@ -1,24 +1,17 @@
-import json
 import os
+import sys
 import time
-import timeit
 import csv
-import random
 import networkx as nx
 import powerlaw
+from matplotlib import pyplot as plt
 
 from variables import *
-from selection_methods import *
+from attrition_methods import *
+from growth_methods import *
+from utils import *
 
 from miller_knowles import *
-from networkx_to_gephi import n2g
-from networkx.generators.random_graphs import gnm_random_graph
-from networkx.algorithms.cluster import triangles, transitivity, clustering,\
-    average_clustering
-from networkx.algorithms.shortest_paths.generic import \
-    average_shortest_path_length
-
-
 
 class ExperimentController():
     
@@ -27,37 +20,42 @@ class ExperimentController():
                  GEN = 2000, 
                  SAMPLE = 20,
                  GEPHI = False,
+                 GRAPHS = False,
                  network_seeds = [TRIAD],
                  coop_probs=[JUST_COOPERATORS], 
                  growths = ["cra","epa"],
-                 attritions = [False, True],
-                 selections = [TOURN_LEAST_FIT], 
+                 attritions = [TOURN_LEAST_FIT], 
                  b_s = [1.0,1.3,1.6,1.9,2.2,2.5,2.8],
                  max = 1000,
-                 X = [0.025]):
+                 X = [0.025],
+                 K = [sys.maxsize],
+                 X2 = [0.025]):
         
         
         self.GEN = GEN
         self.REP = REP
+        self.PALETTE = get_colormaps(REP)
         self.SAMPLE = SAMPLE
         self.GEPHI = GEPHI
+        self.GRAPHS = GRAPHS
         
         self.coop_probs = coop_probs
         self.growths = growths
-        self.attritions = []
-        self.selections = selections
-        
-        # it has to be copied like this if not I get ([False, True],)
-        for att in attritions:
-            self.attritions.append(att)
+        self.attritions = attritions
+
         self.b_s = b_s
         self.max = max
         self.X = X
-    
+        self.X2 = X2
+        self.K = K
+   
         n = int(max*0.95)
-        self.seeds = []
-        for rep in range(self.REP):        
-            for desc in network_seeds:
+        self.seeds = {}
+               
+        for desc in network_seeds:
+            self.seeds[desc] = []
+            
+            for rep in range(self.REP): 
                 st = time.time()
                 
                 if desc == RANDOM_REGULAR_GRAPH:                    
@@ -65,7 +63,7 @@ class ExperimentController():
                 elif desc == ERDOS_RENYI:
                     #network_seed = nx.fast_gnp_random_graph(max,1.0/100,seed=st)
                     # == network_seed = nx.erdos_renyi_graph(1000,0.001,seed=st)                    
-                    network_seed = gnm_random_graph(n,2*n,seed=st)
+                    network_seed = nx.gnm_random_graph(n,2*n,seed=st)
                 elif desc == BARABASI_ALBERT:
                     network_seed = nx.barabasi_albert_graph(n,2,seed=st)
                 elif desc == WATTS_STROGATZ:
@@ -79,21 +77,10 @@ class ExperimentController():
                 else:
                     raise ValueError('Not recognized seed')
 
-#                 centrality_dict = nx.degree_centrality(network_seed)
-#                 centrality_list = list(centrality_dict.values())
-#                 centrality_array = np.array(centrality_list)
-#                 centrality_not_norm = centrality_array * 999
-#                 centrality_int = centrality_not_norm.astype(int)
-#                 results = powerlaw.Fit(centrality_int.tolist())
-                
-                #self.plot_degree_distribution(network_seed)
-
-                #import ipdb; ipdb.set_trace()
-                    
                 # add the seed to the seeds list                
-                self.seeds.append ((rep,{'network_seed': network_seed,
-                                         'network_seed_desc' : desc,
-                                         'network_randomseed' : st}))
+                self.seeds[desc].append ({'rep': rep,
+                                         'nt_seed': network_seed,
+                                         'nt_randomseed' : st})
 
         
         self.timedir = os.path.join("results",time.strftime("%Y%m%d-%H%M%S"))
@@ -105,227 +92,288 @@ class ExperimentController():
         filename = os.path.join(self.timedir,'fin.csv')
         fp = open(filename, 'w', newline='')
         csvw = csv.writer(fp, delimiter=',')
-        csvw.writerow(('id','rep','network',
-               'coop_prob','alg','b','X', 
-               'removed_nodes', 'gen',
-               'cooperators','size','ave','ave2','total_fitness',
-               'ini_transitivity','ini_average_clustering',
-               'ini_components','ini_size_biggest_component',
-               'ini_ave_short_path_biggest',                       
-               'fin_transitivity','fin_average_clustering',
-               'fin_components','fin_size_biggest_component',
-               'fin_ave_short_path_biggest',                       
-               'network_randomseed', 'randomseed',
-               'real_time'))
+        csvw.writerow((
+                # network descriptors
+                'id','rep','network',
+                'coop_prob','alg','b','X','K','X2',
+                # output measures  
+                'removed_nodes', 'gen',
+                'cooperators','size','ave','ave2','total_fitness',
+                # initial structure measures
+                'ini_transitivity','ini_average_clustering',
+                'ini_components','ini_size_biggest_component',
+                'ini_ave_short_path_biggest',
+                # initial fit measures
+                'ini_alpha', 'ini_sigma', 'ini_D',
+                'ini_xmin', 'ini_xmax',
+                'ini_R', 'ini_p',
+                # final structure measures 
+                'fin_transitivity','fin_average_clustering',
+                'fin_components','fin_size_biggest_component',
+                'fin_ave_short_path_biggest',
+                # final fit measures
+                'fin_alpha', 'fin_sigma', 'fin_D',
+                'fin_xmin', 'fin_xmax',
+                'fin_R', 'fin_p',
+                # network seed                
+                'network_randomseed', 'randomseed',
+                # time measures
+                '_ini_perf_counter', '_ini_gephi', 
+                '_ini_graphs', '_ini_calcs', '_ini_fit',
+                '_fin_perf_counter', '_fin_gephi', 
+                '_fin_graphs', '_fin_calcs', '_fin_fit',
+                'total_time'))
         fp.flush()
 
-        for seed in self.seeds:
+        for desc, seed in self.seeds.items():
             for b in self.b_s:
-                sn_args = sn_args_base.copy()
-                sn_args.update(seed[1])
                 for cp in self.coop_probs:
                     for g in self.growths:
                         for att in self.attritions:
-                            if att == '+':
-                                runner = self.run_with_attrition
-                                for x in self.X:
-                                    for s in self.selections:
-                                        sn = SocialNetwork(b=b,  
-                                                           max=self.max,
-                                                           X=x,
-                                                           coop_prob = cp,
-                                                           **sn_args)
+                            for x in self.X:
+                                for k in self.K:
+                                    for x2 in self.X2:
+                                        if g == CRA:
+                                            growth = growth_cra
+                                        elif g == PA:
+                                            growth = growth_pa
+                                        elif g == EPA:
+                                            growth = growth_epa
                                         
-                                        if s == TOURN_LEAST_FIT:
-                                            selection = tornament_least_fit
-                                        elif s == TOURN_FITTEST:
-                                            selection = tornament_fittest
-                                        elif s == LEAST_FIT:
-                                            selection = least_fit
-                                        elif s == FITTEST:
-                                            selection = fittest
-                                        else:
-                                            selection = at_random
-                                                              
-                                        if g == "cra":
-                                            growth = sn.growth_cra
-                                        else:
-                                            growth = sn.growth_epa
+                                        fluct = g + "+(" + att +  ")"
+                                        if att == TOURN_LEAST_FIT:
+                                            att_m = tournament_least_fit
+                                        elif att == TOURN_FITTEST:
+                                            att_m = tornament_fittest
+                                        elif att == LEAST_FIT:
+                                            att_m = least_fit
+                                        elif att == FITTEST:
+                                            att_m = fittest
+                                        elif att == RANDOM:
+                                            att_m = at_random
+                                        elif att == WITHOUT_ATTRITION:
+                                            # this is an special case
+                                            att_m = None
+                                            fluct = g
+                                            
+                                        att_m2 = tournament_fittest2
                                         
-                                        self.start(sn=sn, 
-                                                   rep=seed[0], 
-                                                   alg=g + att + "("+s+")", 
-                                                   growth_method=growth, 
-                                                   runner=runner, 
-                                                   selection_method=selection,
-                                                   csv_writer=csvw) 
-                            else:
-                                runner = self.run_without_attrition
+                                        if self.GRAPHS:
+                                            # keeps a graph for all the repetitions
+                                            fig = plt.figure(2)
+                                        
+                                        for rep in seed:
+                                            sn_args = sn_args_base.copy()
+                                            sn_args.update(rep)
+                                            
+                                            sn = SocialNetwork(fluct=fluct,
+                                                               b=b,  
+                                                               nt_desc=desc,
+                                                               max=self.max,
+                                                               X=x,
+                                                               K=k,
+                                                               X2=x2,
+                                                               coop_prob = cp,
+                                                               **sn_args)
+                                            
+                                            self.start(sn=sn,                                                       
+                                                       growth_method=growth, 
+                                                       att_method=att_m,
+                                                       att_method2=att_m2,
+                                                       csv_writer=csvw)
+                                            
+                                            print("Finished:", sn.signature)
+                                            
+                                            fp.flush()
+                                        
+                                        if self.GRAPHS:
+                                            # after the repetitions are complete
+                                            # save the figures
+                                            save_figures(sn, 
+                                                         self.PALETTE, 
+                                                         self.timedir)
                                 
-                                sn = SocialNetwork(b=b, 
-                                                   X=0,
-                                                   max=self.max,
-                                                   coop_prob = cp,
-                                                   **sn_args)
-                                if g == "cra":
-                                    growth = sn.growth_cra
-                                else:
-                                    growth = sn.growth_epa
-                                
-                                self.start(sn=sn, 
-                                           rep=seed[0], 
-                                           alg=g, 
-                                           growth_method=growth, 
-                                           runner=runner, 
-                                           selection_method=None,
-                                           csv_writer=csvw) 
-                        fp.flush()
         fp.close()
 
         
-    def start(self, sn, rep, alg, growth_method, runner, 
-              selection_method, csv_writer):
-        _perf_counter = time.perf_counter()
+    def start(self, sn, growth_method, att_method, att_method2, csv_writer):
         
+        total_time = _ini_perf_counter = time.perf_counter()
         self.start_network(sn,growth_method)
+        _ini_perf_counter = round(time.perf_counter() - _ini_perf_counter,2)
+        
+        _ini_calcs = time.perf_counter()            
+        initial_nc = network_structure_calculations(sn)
+        _ini_calcs = round(time.perf_counter() - _ini_calcs, 2)
+        
+        _ini_fit = time.perf_counter()
+        sn.initial_fit = powerlaw.Fit(sn.degrees, discrete=True)
+        sn.initial_comp = sn.initial_fit.distribution_compare('power_law',
+                                                              'exponential')
+        _ini_fit = round(time.perf_counter() - _ini_fit,2)
+        
+        _ini_gephi=-1
         if self.GEPHI:
-            self.generate_gephi(sn, "initial")
-            
-        initial_nc = self.network_structure_calculations(rep, alg, sn)
+            _ini_gephi = time.perf_counter()
+            generate_gephi(sn, self.timedir, FOLDER_INITIAL)
+            _ini_gephi = round(time.perf_counter() - _ini_gephi,2)
+        _ini_graphs=-1
+        if self.GRAPHS:
+            _ini_graphs = time.perf_counter()
+            generate_graphs(sn, sn.initial_fit, self.timedir, 
+                            FOLDER_INITIAL, self.PALETTE)
+            _ini_graphs = round(time.perf_counter() - _ini_graphs,2)
 
-        (ave, ave2) = runner(sn, growth_method, selection_method)
-        if self.GEPHI:
-            self.generate_gephi(sn, "end")
-        
-        _perf_counter = round(time.perf_counter() - _perf_counter,2)
-        
-        
-        final_nc = (-1,-1,-1,-1,-1)
+        _fin_perf_counter = time.perf_counter()
+        (ave, ave2) = self.runner(sn, growth_method, att_method, att_method2)
+        _fin_perf_counter = round(time.perf_counter() - _fin_perf_counter,2)
+                
         
         if ave == -1:
             sn.cooperators = 0
+            total_time = round(time.perf_counter() - total_time,2)
+            
+            print (""" WARNING: network shrinked completely, this shouldn't
+                    happen very often although theoretically it is possible""")
+            
+            csv_writer.writerow((sn.id,sn.rep,sn.nt_desc,
+                                 sn.coop_prob,sn.fluct,sn.b,sn.X,sn.K,sn.X2,
+                                 sn.removed_nodes, sn.gen,
+                                 sn.cooperators,sn.size,ave,ave2,sn.total_fit,
+                                 initial_nc[0],initial_nc[1],initial_nc[2],
+                                 initial_nc[3],initial_nc[4],
+                                 ini_pw.alpha, ini_pw.sigma, ini_pw.D,
+                                 ini_pw.xmin, ini_pw.xmax,
+                                 sn.initial_comp[0], sn.initial_comp[1],
+                                 -1,-1,-1,
+                                 -1,-1,
+                                 -1,-1,-1,
+                                 -1,-1,
+                                 -1,-1,
+                                 sn.nt_randomseed, sn.randomseed,
+                                 _ini_perf_counter, _ini_gephi, 
+                                 _ini_graphs, _ini_calcs, _ini_fit,
+                                 -1,-1, 
+                                 -1,-1,-1,
+                                 total_time))
+            
         else: 
+            _fin_calcs = time.perf_counter()
+            final_nc = network_structure_calculations(sn)
+            _fin_calcs = round(time.perf_counter() - _fin_calcs,2)
+            
+            _fin_fit = time.perf_counter()
+            sn.final_fit = powerlaw.Fit(sn.degrees, discrete=True)
+            sn.final_comp = sn.final_fit.distribution_compare('power_law', 
+                                                              'exponential')
+            _fin_fit = round(time.perf_counter() - _fin_fit,2)
+            
+            _fin_gephi=-1
+            if self.GEPHI:
+                _fin_gephi = time.perf_counter()
+                generate_gephi(sn, self.timedir, FOLDER_FINAL)
+                _fin_gephi = round(time.perf_counter() - _fin_gephi,2)
+            _fin_graphs=-1
+            if self.GRAPHS:
+                _fin_graphs = time.perf_counter()
+                generate_graphs(sn, sn.final_fit, self.timedir, 
+                                FOLDER_FINAL, self.PALETTE)
+                _fin_graphs = round(time.perf_counter() - _fin_graphs,2)
+            
             if (sn.size != len(sn.g)):
                 import ipdb;ipdb.set_trace()
             
-            if (sn.cooperators != sn.count_coop()):
+            if (sn.cooperators != count_coop(sn)):
                 import ipdb;ipdb.set_trace()
                 
-            final_nc = self.network_structure_calculations(rep, alg, sn)
-
-            
-        csv_writer.writerow((sn.id,rep,sn.network_seed_desc,
-                             sn.coop_prob,alg,sn.b,sn.X,
-                             sn.removed_nodes, sn.gen,
-                             sn.cooperators,sn.size,ave,ave2,sn.total_fit,
-                             initial_nc[0],initial_nc[1],initial_nc[2],
-                             initial_nc[3],initial_nc[4],
-                             final_nc[0],final_nc[1],final_nc[2],
-                             final_nc[3],final_nc[4],
-                             sn.network_randomseed, sn.randomseed,
-                             _perf_counter))
-        
-
-
-    def network_structure_calculations(self, rep, alg, sn):
-        time_of_calcs = time.time()
-
-        g = sn.g
-
-        _transitivity = transitivity(g)
-        _average_clustering = average_clustering(g)   
-        size_biggest_component = -1
-        connected_components = 0
-        ave_short_path_biggest = -1
-        
-        for sg in nx.connected_component_subgraphs(g, False):
-            connected_components += 1
-            if len(sg) > size_biggest_component:
-                size_biggest_component = len(sg)
-                ave_short_path_biggest = average_shortest_path_length(sg)
-                
-        print (rep,sn.network_seed_desc,alg," - final calculations took", (time.time()-time_of_calcs))
-
-        return (_transitivity,_average_clustering,
-                connected_components, size_biggest_component,
-                ave_short_path_biggest)
-
-
-
-    def generate_gephi(self, sn, folder):
-        gephidir = os.path.join(self.timedir, "gephi", str(sn.id), folder)
-        if not os.path.exists(gephidir):
-            os.makedirs(gephidir)
-        n2g(sn.g, gephidir)
+            total_time = round(time.perf_counter() - total_time,2)
     
+            ini_pw = sn.initial_fit.power_law
+            fin_pw = sn.final_fit.power_law
+            
+            csv_writer.writerow((# network descriptors
+                                 sn.id,sn.rep,sn.nt_desc,
+                                 sn.coop_prob,sn.fluct,sn.b,sn.X,sn.K,sn.X2,
+                                 # output measures
+                                 sn.removed_nodes, sn.gen,
+                                 sn.cooperators,sn.size,ave,ave2,sn.total_fit,
+                                 # initial structural measures
+                                 initial_nc[0], initial_nc[1],
+                                 initial_nc[2], initial_nc[3],
+                                 initial_nc[4],
+                                 # initial fit measures
+                                 ini_pw.alpha, ini_pw.sigma, ini_pw.D,
+                                 ini_pw.xmin, ini_pw.xmax,
+                                 sn.initial_comp[0], sn.initial_comp[1],
+                                 # final structural measures               
+                                 final_nc[0], final_nc[1],
+                                 final_nc[2], final_nc[3],
+                                 final_nc[4],
+                                 # final fit measures
+                                 fin_pw.alpha, fin_pw.sigma, fin_pw.D,
+                                 fin_pw.xmin, fin_pw.xmax,
+                                 sn.final_comp[0], sn.final_comp[1],
+                                 # seeds
+                                 sn.nt_randomseed, sn.randomseed,
+                                 # time measures
+                                 _ini_perf_counter, _ini_gephi, 
+                                 _ini_graphs, _ini_calcs, _ini_fit,
+                                 _fin_perf_counter, _fin_gephi, 
+                                 _fin_graphs, _fin_calcs, _fin_fit,
+                                 total_time))
+        
 
     def start_network(self, sn, growth_method):
         GEN = self.GEN
         POP = sn.max
 
-        sn.play_games()
+        sn.play_games_and_remove_isolated_nodes()
         sn.update_strategies()
         sn.growth_initial(growth_method)
         while (sn.size < POP and sn.gen < GEN):
-                sn.play_games()
+                sn.play_games_and_remove_isolated_nodes()
                 sn.update_strategies()
-                growth_method()
+                growth_method(sn)
                 #if sn.cooperators > 0:
                 #    import ipdb;ipdb.set_trace()
 
-
-    def run_without_attrition(self, sn, growth_method, selection_method):    
-        GEN = self.GEN
-        POP = sn.max
-        SAMPLE = self.SAMPLE        
-        while (sn.gen <= GEN-SAMPLE):
-            sn.play_games()
-            sn.update_strategies()
-        ave = 0.0
-        while (sn.gen < GEN):
-            sn.play_games()
-            sn.update_strategies()
-            ave += sn.cooperators / (1.0 * sn.size)
-        #there is something wrong with this average
-        sn.play_games()
-        sn.update_strategies()
-        ave += sn.cooperators / (1.0 * sn.size)
         
-        if ave > SAMPLE:
-            import ipdb; ipdb.set_trace()
-        return (ave / SAMPLE, ave / SAMPLE)
-
-        
-    def run_with_attrition(self, sn, growth_method, selection_method):  
+    def runner(self, sn, growth_method, att_method, att_method2):  
         GEN = self.GEN
         POP = sn.max
         SAMPLE = self.SAMPLE
         
         while (sn.gen <= GEN-SAMPLE):
-            sn.play_games()
+            sn.play_games_and_remove_isolated_nodes()
             if sn.size < sn.e_per_gen:
                 return (-1, -1)
             sn.update_strategies()
             if(sn.size < POP):
-                growth_method()
+                growth_method(sn)
             else:
-                sn.attrition(selection_method)
+                sn.attrition(att_method)
+            
+            if sn.K > 0 and sn.gen % sn.K == 0:
+                sn.attrition(att_method2)
 
         ave = 0.0
         ave2 = 0.0
         while (sn.gen < GEN):
-            sn.play_games()
+            sn.play_games_and_remove_isolated_nodes()
             if sn.size < sn.e_per_gen:
                 return (-1, -1)
             ave2 += sn.cooperators / (1.0 * sn.size)
             sn.update_strategies()
             ave += sn.cooperators / (1.0 * sn.size)
             if(sn.size < POP):
-                growth_method()
+                growth_method(sn)
             else:
-                sn.attrition(selection_method)
+                sn.attrition(att_method)
+            
+            if sn.K > 0 and sn.gen % sn.K == 0:
+                sn.attrition(att_method2)
 
-        sn.play_games()
+        sn.play_games_and_remove_isolated_nodes()
         ave2 += sn.cooperators / (1.0 * sn.size)
         sn.update_strategies()
         ave += sn.cooperators / (1.0 * sn.size)
@@ -334,46 +382,3 @@ class ExperimentController():
             import ipdb; ipdb.set_trace()
 
         return (ave / SAMPLE, ave2/SAMPLE)
-
-        
-    def draw_random(self, sn):
-        nx.draw(sn.g)
-        plt.show()
-
-        
-    def draw(self, sn):
-        G=sn.g
-        # find node with largest degree
-        node_and_degree=G.degree()
-        (largest_hub,degree)=sorted(node_and_degree.items(),key=itemgetter(1))[-1]
-        # Create ego graph of main hub
-        hub_ego=nx.ego_graph(G,largest_hub)
-        # Draw graph
-        pos=nx.spring_layout(hub_ego)
-        nx.draw(hub_ego,pos,node_color='b',node_size=50,with_labels=False)
-        # Draw ego as large and red
-        nx.draw_networkx_nodes(hub_ego,pos,nodelist=[largest_hub],node_size=300,node_color='r')
-        plt.savefig('ego_graph.png')
-        plt.show()
-        
-    def plot_degree_distribution(self, G):
-
-        degree_sequence=sorted(nx.degree(G).values(),reverse=True) # degree sequence
-        #print "Degree sequence", degree_sequence
-        dmax=max(degree_sequence)
-        
-        plt.loglog(degree_sequence,'b-',marker='o')
-        plt.title("Degree rank plot")
-        plt.ylabel("degree")
-        plt.xlabel("rank")
-        
-        # draw graph in inset
-#         plt.axes([0.45,0.45,0.45,0.45])
-#         Gcc=sorted(nx.connected_component_subgraphs(G), key = len, reverse=True)[0]
-#         pos=nx.spring_layout(Gcc)
-#         plt.axis('off')
-#         nx.draw_networkx_nodes(Gcc,pos,node_size=20)
-#         nx.draw_networkx_edges(Gcc,pos,alpha=0.4)
-        
-        plt.savefig("degree_histogram.png")
-        plt.show()

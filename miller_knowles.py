@@ -1,6 +1,7 @@
 import random
 import time
 import csv
+import sys
 
 from sortedcontainers import SortedSet
 import networkx as nx
@@ -22,9 +23,11 @@ class SocialNetwork(object):
     strategies = [COOP, DEFE]
 
     def __init__(self, 
-                 network_seed,
-                 network_seed_desc,
-                 network_randomseed,
+                 fluct,
+                 rep,
+                 nt_seed,
+                 nt_desc,
+                 nt_randomseed,
                  coop_prob = JUST_COOPERATORS,
                  randomseed = None,
                  b=1,                   
@@ -33,13 +36,18 @@ class SocialNetwork(object):
                  epsilon = 0.99,
                  max=1000, 
                  tourn=0.01, 
-                 X=0.025):
+                 X=0.025,
+                 K=sys.maxsize,
+                 X2= 0.025):
 
         # this is for identification of the network
         self.id = self.__class__.ID
-        self.__class__.ID += 1     
-        self.network_seed_desc = network_seed_desc
-        self.network_randomseed = network_randomseed  
+        self.__class__.ID += 1
+        self.fluct = fluct
+             
+        self.rep = rep
+        self.nt_desc = nt_desc
+        self.nt_randomseed = nt_randomseed
         self.coop_prob = coop_prob
         
         # set the PD game
@@ -70,6 +78,8 @@ class SocialNetwork(object):
         self.max = max
         self.tourn = tourn
         self.X = X
+        self.K = K
+        self.X2 = X2
         
         # counters
         self.gen = 0
@@ -78,12 +88,14 @@ class SocialNetwork(object):
         self.removed_nodes = 0
         self.total_fit = 0
         self.total_efit = 0
+        self.degrees = 0
         self.size = 0
         g = self.g = nx.Graph()
 
         # crate auxiliary network structures to increase efficiency
         self._max = max+n_per_gen
         self.eps_fitness = np.empty(self._max)
+        self.degrees = np.empty(self._max)
         self.fitness = np.empty(self._max)
         self.fitness_of = np.empty(self._max, dtype=np.int_)
         self.free_indexes = []
@@ -91,15 +103,24 @@ class SocialNetwork(object):
         
         # initialize the auxiliary structures
         for i in range(0, self._max):
+            self.degrees[i] = 0
             self.fitness_of[i] = -1
             self.free_indexes.append(i)
        
         # create the network 
-        self.__create_from_seed(network_seed, coop_prob)
+        self.__create_from_seed(nt_seed, coop_prob)
         
         # define the game the nodes are going to play
         self.game = PD(b, self.fitness)
-
+        
+        self.treatment = '_'.join(str(x) for x in (self.nt_desc, 
+                                                   self.coop_prob,
+                                                   self.fluct, self.b, 
+                                                   self.X))
+        
+        self.signature = str(self.id) + '_' + \
+                         str(self.rep) + '(' + self.treatment + ')'
+        
 
     def __create_from_seed(self, seed, coop_prob):
         """ This method use the networks structure that comes in the parameter 
@@ -175,6 +196,7 @@ class SocialNetwork(object):
         self.node_set.add(id)
         self.fitness_of[r_index] = id
         self.fitness[r_index] = 0
+        self.degrees[r_index] = 0
         
         # update network parameters
         if st == COOP:
@@ -185,7 +207,7 @@ class SocialNetwork(object):
         return id
 
 
-    def play_games(self):
+    def play_games_and_remove_isolated_nodes(self):
         g = self.g
         node = g.node
         node_set = self.node_set
@@ -193,17 +215,21 @@ class SocialNetwork(object):
         f = self.fitness
         ef = self.eps_fitness
         eps = self.epsilon
+        degrees = self.degrees
                 
         f.fill(0)
 
         total_fit = 0
         total_efit = 0
+        total_degrees = 0
         to_remove=[]
         
         for n1 in node_set:
             adj = adjacency[n1]
+            len_adj = len(adj)
+
             # make sure to remove the nodes that has no more edges
-            if (len(adj) == 0):
+            if (len_adj == 0):
                 to_remove.append(n1)
                 self.removed_nodes += 1
             else:
@@ -242,17 +268,23 @@ class SocialNetwork(object):
                 # this epsilon is important to give some of the nodes 
                 # some chance to cooperate
                 ef[r_index1] = 1 - eps + eps * f[r_index1]
-                total_efit += ef[r_index1] 
+                total_efit += ef[r_index1]
+                
+                # keep the degrees updates for PA
+                degrees[r_index1] = len_adj
+                total_degrees += degrees[r_index1]
+                
                        
         # set the class attribute
         self.total_fit = total_fit
         self.total_efit = total_efit
+        self.total_degrees = total_degrees
         
         # population will  collapse
         if self.size - len(to_remove) < self.e_per_gen:
             print ("population collapsed with", 
-                   self.count_coop(), "cooperators and",
-                   self.size - self.count_coop(), "defectors" )
+                   count_coop(sn), "cooperators and",
+                   self.size - count_coop(sn), "defectors" )
 
         # remove nodes that didn't have any edges            
         for n in to_remove:
@@ -268,17 +300,20 @@ class SocialNetwork(object):
         g = self.g
         self.gen += 1
         cooperators = 0
+        degrees = self.degrees
         
         for n1 in g.nodes_iter(data = True):
             
             neighbors_n1 = g.neighbors(n1[0])
+            r_index1 = n1[1]['r_index']
+                        
             n2_index = random.choice(neighbors_n1)
             n2 = g.node[n2_index]
             
             # check that the strategies are actually different
             if n1[1]['st'] != n2['st']:
                 
-                r_n1 = self.fitness[n1[1]['r_index']]
+                r_n1 = self.fitness[r_index1]
                 r_n2 = self.fitness[n2['r_index']]
                 
                 # Look to see if difference is less than a millionth of
@@ -332,103 +367,9 @@ class SocialNetwork(object):
         if self.size < self.n_per_gen:
             temp = self.n_per_gen
             self.n_per_gen = self.n_per_gen - self.count
-            growth()
+            growth(self)
             self.n_per_gen = temp
 
-
-    def growth_cra(self):
-        g = self.g
-        node_set = self.node_set
-        e_per_gen = self.e_per_gen
-        
-        # this are the existent nodes before the growth process
-        # miller's nodes doesn't attach to new nodes, that hasn't
-        # play yet
-        range_of_existent_nodes = range(len(node_set))        
-         
-                
-        for i in range(self.n_per_gen):
-            
-            # add the node to the network
-            n_id = self.add_node(random.choice(self.__class__.strategies))
-            
-            # select the nodes to be connected with            
-            selected = random.sample(range_of_existent_nodes,e_per_gen)
-            
-            # connect the node to e_per_gen nodes (edges)
-            for node_index in selected:
-          
-                # add the edge
-                g.add_edge(n_id, node_set[node_index])
-                
-    
-    def growth_epa(self):
-        f_of = self.fitness_of
-        ef = self.eps_fitness     
-        node = self.g.node
-        node_set = self.node_set
-        
-        """
-        Poncela et. al suggested to use an epsilon of 0.99. No reason is 
-        given, but we assumed it is to avoid divisions by 0. However, this 
-        is an unnecessary expensive calculation. We avoid this by using the
-        __choice_r_index
-        survival[f_of != -1] = 1 - 0.99 + \
-                              0.99 * self.fitness[f_of != -1]     
-        survival /= sum(survival[f_of != -1])
-        """
-        g = self.g
-        n_per_gen = self.n_per_gen
-        e_per_gen = self.e_per_gen
-        total_efit = self.total_efit
-        
-        for i in range(n_per_gen):
-            
-            # add the node to the network
-            n_id = self.add_node(random.choice(self.__class__.strategies))
-                      
-            # keep the temporal nodes already selected
-            temp_efitness = []
-                
-            # connect the node to e_per_gen nodes (edges)
-            for e in range(e_per_gen):
-                
-                # pick a random value from 0 to max_fitness
-                picked_value = random.uniform(0, total_efit)
-                                    
-                # use the pick value to select a node to connect
-                current_value = 0
-                selected_node = -1
-                for n in node_set:
-                    current_value += ef[node[n]['r_index']]
-                    if current_value > picked_value:
-                        selected_node = n
-                        r_index = node[n]['r_index']
-                        break;
-        
-                if selected_node == -1:
-                    print ("this shouldn't ever happen")
-                    import ipdb; ipdb.set_trace()
-                                
-                # add the edge
-                g.add_edge(n_id, selected_node)
-                
-                # temporarily store the r index and fitness values
-                temp_efitness.append((r_index, ef[r_index]))
-                                
-                # reduce the fitness to 0 so the node won't be selected
-                # again. also reduce the fitness
-                total_efit -= ef[r_index]
-                ef[r_index] = 0                
-        
-            # restore the fitness array after adding the edges
-            for r_index, val in temp_efitness:
-                ef[r_index] = val
-                
-            # restart the max sum
-            total_efit = self.total_efit
-
-            
 
 
     def attrition(self, selection_method):
@@ -472,12 +413,3 @@ class SocialNetwork(object):
             self.node_set.discard(n)
             g.remove_node(n)
             self.size -= 1
-
-
-
-    def count_coop(self):
-        coop = 0 
-        for key, value in self.g.node.items():
-            if value['nst'] == COOP:
-                coop += 1
-        return coop
