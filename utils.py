@@ -68,11 +68,10 @@ def generate_gephi(sn, timedir, folder):
     n2g(sn.g, gephidir)
 
 
-def generate_graphs(sn, fit, timedir, folder, palette):
+def generate_graphs(sn, fit, timedir, stage, palette):
     
     
-    graphdir = os.path.join(timedir, "graphs", sn.treatment, 
-                            str(sn.id), folder)
+    graphdir = os.path.join(timedir, "graphs", sn.treatment, str(sn.id))
     if not os.path.exists(graphdir):
         os.makedirs(graphdir)
    
@@ -82,30 +81,50 @@ def generate_graphs(sn, fit, timedir, folder, palette):
 #                                linestyle='--', ax=sn.figcdf)
 #         plt.savefig('plot_cdf.eps', bbox_inches='tight')
     
-    
-    fig = plt.figure(PDF_CCDF)
+    if stage == INITIAL_STAGE:
+        dark = 'blue'
+        light = 'lightblue'
+    elif stage == FINAL_STAGE:
+        dark = 'red'
+        light = 'orange'
+   
+    # INITIAL AND FINAL INDIVIDUAL PDF 
+    fig = plt.figure(PDF)
     #fig_pdf_ccdf.set_ylabel(r"$p(X)$,  $p(X\geq x)$")
     #fig_pdf_ccdf.set_xlabel(r"Node Degree")
-    fig_pdf_ccdf = fit.plot_pdf(color='blue', linewidth=2)
-    fit.power_law.plot_pdf(color='skyblue', linestyle='--', ax=fig_pdf_ccdf)
-    fit.plot_ccdf(color='red', linewidth=2, ax=fig_pdf_ccdf)
-    fit.power_law.plot_ccdf(color='orange', linestyle='--', ax=fig_pdf_ccdf)
-    filename = os.path.join(graphdir, sn.signature+'_pdf_ccdf.eps')
-    plt.savefig(filename, bbox_inches='tight')
-    plt.close(fig)
+    fig_pdf_ccdf = fit.plot_pdf(color=dark, linewidth=2)
+    fit.power_law.plot_pdf(color=light, linestyle='--', ax=fig_pdf_ccdf)
+    if stage == FINAL_STAGE:
+        filename = os.path.join(graphdir, sn.signature+'_pdf.eps')
+        plt.savefig(filename, bbox_inches='tight')
+        plt.close(fig)
     
-    if folder == FOLDER_INITIAL:
+    # INITIAL OR FINAL TREATMENT PDF
+    if stage == INITIAL_STAGE:
         fig = plt.figure(PDF_INITIAL)
-    elif folder == FOLDER_FINAL:
-        fig = plt.figure(PDF_FINAL)
-  
+    elif stage == FINAL_STAGE:
+        fig = plt.figure(PDF_FINAL)  
     fig_pdf = fit.plot_pdf(color=palette[0][sn.rep], linewidth=1)
     fit.power_law.plot_pdf(color=palette[1][sn.rep], 
                            linestyle='--', ax=fig_pdf)
     
-    if folder == FOLDER_INITIAL:
+
+    
+    # INITIAL AND FINAL INDIVIDUAL CCDF
+    fig = plt.figure(CCDF)
+    #fig_pdf_ccdf.set_ylabel(r"$p(X)$,  $p(X\geq x)$")
+    #fig_pdf_ccdf.set_xlabel(r"Node Degree")
+    figccdf = fit.plot_ccdf(color=dark, linewidth=2)
+    fit.power_law.plot_ccdf(color=light, linestyle='--', ax=fig_pdf_ccdf)
+    if stage == FINAL_STAGE:
+        filename = os.path.join(graphdir, sn.signature+'_ccdf.eps')
+        plt.savefig(filename, bbox_inches='tight')
+        plt.close(fig)
+    
+    # INITIAL OR FINAL TREATMENT CCDF
+    if stage == INITIAL_STAGE:
         fig = plt.figure(CCDF_INITIAL)
-    elif folder == FOLDER_FINAL:
+    elif stage == FINAL_STAGE:
         fig = plt.figure(CCDF_FINAL)
     fig_ccdf = fit.plot_ccdf(color=palette[0][sn.rep], linewidth=1)
     fit.power_law.plot_ccdf(color=palette[1][sn.rep], 
@@ -127,38 +146,42 @@ def generate_graphs(sn, fit, timedir, folder, palette):
         degree_x.append(x)
         freq_y.append(y) 
 
+    # INITIAL AND FINAL INDIVIDUAL DFD
     fig = plt.figure(DFD)
     # plt.xlabel("Degree")
     # plt.ylabel("Frequency")
     # plt.figure(str('Log Log Plot Degree Frequencies Distribution'),figsize=(10.5,9))
     plt.loglog(degree_x,freq_y,linestyle='-', marker='', 
-               color=palette[0][sn.rep]) 
-    filename = os.path.join(graphdir, sn.signature+'_dfd.eps')
-    plt.savefig(filename, bbox_inches='tight')
-    plt.close(fig)
+               color=dark)
+    if stage == FINAL_STAGE: 
+        filename = os.path.join(graphdir, sn.signature+'_dfd.eps')
+        plt.savefig(filename, bbox_inches='tight')
+        plt.close(fig)
     
-    if folder == FOLDER_INITIAL:
+    # INITIAL OR FINAL TREATMENT DFD
+    if stage == INITIAL_STAGE:
         fig = plt.figure(DFD_INITIAL)
-    elif folder == FOLDER_FINAL:
+    elif stage == FINAL_STAGE:
         fig = plt.figure(DFD_FINAL)
     plt.loglog(degree_x,freq_y,linestyle='-', marker='', 
                color=palette[1][sn.rep]) 
 
     
-    
+    #  INITIAL AND FINAL INDIVIDUAL DR
     fig = plt.figure(DR)
     # plt.title("Degree rank plot")
     # plt.ylabel("degree")
     # plt.xlabel("rank")
     degree_sequence = sorted(sn.degrees,reverse=True)
-    plt.loglog(degree_sequence,ls='-',color=palette[0][sn.rep],marker='.')
-    filename = os.path.join(graphdir, sn.signature+'_dr.eps')
-    plt.savefig(filename, bbox_inches='tight')
-    plt.close(fig)
+    plt.loglog(degree_sequence,ls='-',color=dark,marker='.')
+    if stage == FINAL_STAGE: 
+        filename = os.path.join(graphdir, sn.signature+'_dr.eps')
+        plt.savefig(filename, bbox_inches='tight')
+        plt.close(fig)
     
-    if folder == FOLDER_INITIAL:
+    if stage == INITIAL_STAGE:
         fig = plt.figure(DR_INITIAL)
-    elif folder == FOLDER_FINAL:
+    elif stage == FINAL_STAGE:
         fig = plt.figure(DR_FINAL)
     plt.loglog(degree_sequence,ls='-',color=palette[1][sn.rep],marker='.')
 

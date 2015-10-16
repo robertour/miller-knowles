@@ -221,7 +221,7 @@ class ExperimentController():
         if self.GRAPHS:
             _ini_graphs = time.perf_counter()
             generate_graphs(sn, sn.initial_fit, self.timedir, 
-                            FOLDER_INITIAL, self.PALETTE)
+                            INITIAL_STAGE, self.PALETTE)
             _ini_graphs = round(time.perf_counter() - _ini_graphs,2)
 
         _fin_perf_counter = time.perf_counter()
@@ -271,13 +271,13 @@ class ExperimentController():
             _fin_gephi=-1
             if self.GEPHI:
                 _fin_gephi = time.perf_counter()
-                generate_gephi(sn, self.timedir, FOLDER_FINAL)
+                generate_gephi(sn, self.timedir, FOLDER_INITIAL)
                 _fin_gephi = round(time.perf_counter() - _fin_gephi,2)
             _fin_graphs=-1
             if self.GRAPHS:
                 _fin_graphs = time.perf_counter()
                 generate_graphs(sn, sn.final_fit, self.timedir, 
-                                FOLDER_FINAL, self.PALETTE)
+                                FINAL_STAGE, self.PALETTE)
                 _fin_graphs = round(time.perf_counter() - _fin_graphs,2)
             
             if (sn.size != len(sn.g)):

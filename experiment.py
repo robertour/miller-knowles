@@ -4,6 +4,38 @@ from variables import *
 CAUTION: Models without attrition are better test separately because
 any attrition with X = 0 or X2 = 0 is equivalent to no attrition.
 """
+
+experiment = { 
+  "controller": {
+    "REP" : 10,
+    "GEN" : 2000,
+    "SAMPLE" : 20,
+    "GEPHI": True,
+    "GRAPHS": True,
+    "network_seeds": [TRIAD],
+    "coop_probs": [JUST_DEFECTORS],
+    "growths" : [PA,EPA,CRA],
+    "attritions" : [TOURN_LEAST_FIT],
+    "max" : 1000,
+    "b_s" : [1.3,1.6,1.9,2.2,2.5],
+    #"b_s" : [1.6],
+    #"b_s" : [1.0,1.5,2.0,2.5],
+    #"b_s" : [0.4,0.7,1.0,1.3,1.6],
+    "X" : [0,0.025],
+    "K" : [10,20,40,80],
+    "X2" : [0.001,0.01,0.1]
+  },
+  "sn" : { 
+      "n_per_gen" : 10,
+      "e_per_gen" : 2,
+      "tourn" : 0.01,
+      "randomseed" : None,
+    }
+}
+
+
+
+""" full attrition
 experiment = { 
   "controller": {
     "REP" : 10,
@@ -20,9 +52,9 @@ experiment = {
     #"b_s" : [1.6],
     "b_s" : [1.3,1.6,1.9,2.2,2.5],
     #"b_s" : [0.4,0.7,1.0,1.3,1.6],
-    "X" : [0.01, 0.1],
-    "K" : [10,100],
-    "X2" : [0.01, 0.1]
+    "X" : [0,0.01,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9],
+    "K" : [0],
+    "X2" : [0]
   },
   "sn" : { 
       "n_per_gen" : 10,
@@ -31,7 +63,37 @@ experiment = {
       "randomseed" : None,
     }
 }
+"""
 
+""" this was running the missing baselines
+experiment = { 
+  "controller": {
+    "REP" : 10,
+    "GEN" : 2000,
+    "SAMPLE" : 20,
+    "GEPHI": False,
+    "GRAPHS": False,
+    "network_seeds": [TRIAD],
+    "coop_probs": [JUST_DEFECTORS,JUST_COOPERATORS],
+    "growths" : [PA,EPA,CRA],
+    "attritions" : [TOURN_LEAST_FIT],
+    "max" : 1000,
+    #"b_s" : [1.6,1.9,2.2,2.5],
+    #"b_s" : [1.6],
+    "b_s" : [1.3,1.6,1.9,2.2,2.5],
+    #"b_s" : [0.4,0.7,1.0,1.3,1.6],
+    "X" : [0],
+    "K" : [0],
+    "X2" : [0]
+  },
+  "sn" : { 
+      "n_per_gen" : 10,
+      "e_per_gen" : 2,
+      "tourn" : 0.01,
+      "randomseed" : None,
+    }
+}
+"""
 
 """ THIS IS WITH THE NEW ATTRITION
 experiment = { 
