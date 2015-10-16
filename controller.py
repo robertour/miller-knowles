@@ -271,7 +271,7 @@ class ExperimentController():
             _fin_gephi=-1
             if self.GEPHI:
                 _fin_gephi = time.perf_counter()
-                generate_gephi(sn, self.timedir, FOLDER_INITIAL)
+                generate_gephi(sn, self.timedir, FOLDER_FINAL)
                 _fin_gephi = round(time.perf_counter() - _fin_gephi,2)
             _fin_graphs=-1
             if self.GRAPHS:
