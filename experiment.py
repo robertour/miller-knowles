@@ -7,6 +7,67 @@ any attrition with X = 0 or X2 = 0 is equivalent to no attrition.
 
 experiment = { 
   "controller": {
+    "REP" : 2,
+    "GEN" : 200,
+    "SAMPLE" : 20,
+    "GEPHI": True,
+    "GRAPHS": True,
+    "network_seeds": [TRIAD],
+    "coop_probs": [JUST_DEFECTORS],
+    "growths" : [PA,EPA,CRA],
+    "attritions" : [TOURN_LEAST_FIT],
+    "max" : 100,
+    "b_s" : [1.3,1.6,1.9,2.2,2.5],
+    #"b_s" : [1.6],
+    #"b_s" : [1.0,1.5,2.0,2.5],
+    #"b_s" : [0.4,0.7,1.0,1.3,1.6],
+    "X" : [0,0.01,0.025],
+    "K" : [10,20], 
+    "X2" : [0.001,0.01]# leaving ,0.1] out because, 
+                       # at least the version with 20 exists
+                       # but missing 10 :(
+  },
+  "sn" : { 
+      "n_per_gen" : 10,
+      "e_per_gen" : 2,
+      "tourn" : 0.01,
+      "randomseed" : None,
+    }
+}
+
+""" MISSING COOPERATORS WITHOUT ATTRITION OF ELITES
+experiment = { 
+  "controller": {
+    "REP" : 10,
+    "GEN" : 2000,
+    "SAMPLE" : 20,
+    "GEPHI": True,
+    "GRAPHS": True,
+    "network_seeds": [TRIAD],
+    "coop_probs": [JUST_COOPERATORS],
+    "growths" : [PA,EPA,CRA],
+    "attritions" : [TOURN_LEAST_FIT],
+    "max" : 1000,
+    "b_s" : [1.3,1.6,1.9,2.2,2.5],
+    #"b_s" : [1.6],
+    #"b_s" : [1.0,1.5,2.0,2.5],
+    #"b_s" : [0.4,0.7,1.0,1.3,1.6],
+    "X" : [0,0.01,0.025],
+    "K" : [0], 
+    "X2" : [0]
+  },
+  "sn" : { 
+      "n_per_gen" : 10,
+      "e_per_gen" : 2,
+      "tourn" : 0.01,
+      "randomseed" : None,
+    }
+}
+"""
+
+""" just defectors - no attrition of elites
+experiment = { 
+  "controller": {
     "REP" : 10,
     "GEN" : 2000,
     "SAMPLE" : 20,
@@ -21,8 +82,38 @@ experiment = {
     #"b_s" : [1.6],
     #"b_s" : [1.0,1.5,2.0,2.5],
     #"b_s" : [0.4,0.7,1.0,1.3,1.6],
-    "X" : [0,0.025],
-    "K" : [10,20,40,80],
+    "X" : [0,0.01,0.025],
+    "K" : [0], 
+    "X2" : [0]
+  },
+  "sn" : { 
+      "n_per_gen" : 10,
+      "e_per_gen" : 2,
+      "tourn" : 0.01,
+      "randomseed" : None,
+    }
+}
+"""
+
+"""
+experiment = { 
+  "controller": {
+    "REP" : 10,
+    "GEN" : 2000,
+    "SAMPLE" : 20,
+    "GEPHI": True,
+    "GRAPHS": True,
+    "network_seeds": [TRIAD],
+    "coop_probs": [JUST_DEFECTORS],
+    "growths" : [PA,EPA,CRA],
+    "attritions" : [TOURN_LEAST_FIT],
+    "max" : 1000,
+    "b_s" : [1.3,1.6,1.9,2.2,2.5],
+    #"b_s" : [1.6],
+    #"b_s" : [1.0,1.5,2.0,2.5],
+    #"b_s" : [0.4,0.7,1.0,1.3,1.6],
+    "X" : [0,0.01,0.025],
+    "K" : [10,20], 
     "X2" : [0.001,0.01,0.1]
   },
   "sn" : { 
@@ -32,6 +123,7 @@ experiment = {
       "randomseed" : None,
     }
 }
+"""
 
 
 

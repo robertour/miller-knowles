@@ -115,8 +115,8 @@ class SocialNetwork(object):
         
         self.treatment = '_'.join(str(x) for x in (self.nt_desc, 
                                                    self.coop_prob,
-                                                   self.fluct, self.b, 
-                                                   self.X))
+                                                   self.fluct, self.b,
+                                                   self.X, self.K, self.X2))
         
         self.signature = str(self.id) + '_' + \
                          str(self.rep) + '(' + self.treatment + ')'

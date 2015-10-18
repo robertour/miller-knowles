@@ -1,6 +1,6 @@
 import os
 import networkx as nx
-from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt, pylab
 import matplotlib.cm as cmx
 import matplotlib.colors as colors
 
@@ -95,6 +95,8 @@ def generate_graphs(sn, fit, timedir, stage, palette):
     fig_pdf_ccdf = fit.plot_pdf(color=dark, linewidth=2)
     fit.power_law.plot_pdf(color=light, linestyle='--', ax=fig_pdf_ccdf)
     if stage == FINAL_STAGE:
+        #pylab.ylim([0.000001,1])
+        pylab.xlim([0,1000])
         filename = os.path.join(graphdir, sn.signature+'_pdf.eps')
         plt.savefig(filename, bbox_inches='tight')
         plt.close(fig)
@@ -117,6 +119,8 @@ def generate_graphs(sn, fit, timedir, stage, palette):
     figccdf = fit.plot_ccdf(color=dark, linewidth=2)
     fit.power_law.plot_ccdf(color=light, linestyle='--', ax=fig_pdf_ccdf)
     if stage == FINAL_STAGE:
+        #pylab.ylim([0.0001,1])
+        pylab.xlim([0,1000])
         filename = os.path.join(graphdir, sn.signature+'_ccdf.eps')
         plt.savefig(filename, bbox_inches='tight')
         plt.close(fig)
@@ -144,7 +148,7 @@ def generate_graphs(sn, fit, timedir, stage, palette):
     freq_y = []
     for x,y in sd.items():
         degree_x.append(x)
-        freq_y.append(y) 
+        freq_y.append(y)
 
     # INITIAL AND FINAL INDIVIDUAL DFD
     fig = plt.figure(DFD)
@@ -153,7 +157,9 @@ def generate_graphs(sn, fit, timedir, stage, palette):
     # plt.figure(str('Log Log Plot Degree Frequencies Distribution'),figsize=(10.5,9))
     plt.loglog(degree_x,freq_y,linestyle='-', marker='', 
                color=dark)
-    if stage == FINAL_STAGE: 
+    if stage == FINAL_STAGE:
+        pylab.ylim([0,1000])
+        pylab.xlim([0,1000])
         filename = os.path.join(graphdir, sn.signature+'_dfd.eps')
         plt.savefig(filename, bbox_inches='tight')
         plt.close(fig)
@@ -174,7 +180,9 @@ def generate_graphs(sn, fit, timedir, stage, palette):
     # plt.xlabel("rank")
     degree_sequence = sorted(sn.degrees,reverse=True)
     plt.loglog(degree_sequence,ls='-',color=dark,marker='.')
-    if stage == FINAL_STAGE: 
+    if stage == FINAL_STAGE:
+        pylab.ylim([0,1000])
+        pylab.xlim([0,1000]) 
         filename = os.path.join(graphdir, sn.signature+'_dr.eps')
         plt.savefig(filename, bbox_inches='tight')
         plt.close(fig)
@@ -194,42 +202,58 @@ def save_figures(sn, palette, timedir):
         os.makedirs(graphdir)
     
     fig = plt.figure(PDF_INITIAL)
+    pylab.ylim([0.000001,1])
+    pylab.xlim([0,1000])
     filename = os.path.join(graphdir, "pdf_initial.eps")
     plt.savefig(filename, bbox_inches='tight')
     plt.close(fig)
     
     fig = plt.figure(CCDF_INITIAL)
+    pylab.ylim([0.0001,1])
+    pylab.xlim([0,1000])
     filename = os.path.join(graphdir, "ccdf_initial.eps")
     plt.savefig(filename, bbox_inches='tight')
     plt.close(fig)    
     
     fig = plt.figure(DR_INITIAL)
+    pylab.ylim([0,1000])
+    pylab.xlim([0,1000])
     filename = os.path.join(graphdir, "dr_initial.eps")
     plt.savefig(filename, bbox_inches='tight')
     plt.close(fig)
     
     fig = plt.figure(DFD_INITIAL)
+    pylab.ylim([0,1000])
+    pylab.xlim([0,1000])
     filename = os.path.join(graphdir, "dfd_initial.eps")
     plt.savefig(filename, bbox_inches='tight')
     plt.close(fig)
     
     
     fig = plt.figure(PDF_FINAL)
+    pylab.ylim([0.000001,1])
+    pylab.xlim([0,1000])
     filename = os.path.join(graphdir, "pdf_final.eps")
     plt.savefig(filename, bbox_inches='tight')
     plt.close(fig)    
     
     fig = plt.figure(CCDF_FINAL)
+    pylab.ylim([0.0001,1])
+    pylab.xlim([0,1000])
     filename = os.path.join(graphdir, "ccdf_final.eps")
     plt.savefig(filename, bbox_inches='tight')
     plt.close(fig)
         
     fig = plt.figure(DR_FINAL)
+    pylab.ylim([0,1000])
+    pylab.xlim([0,1000])
     filename = os.path.join(graphdir, "dr_final.eps")
     plt.savefig(filename, bbox_inches='tight')
     plt.close(fig)
     
     fig = plt.figure(DFD_FINAL)
+    pylab.ylim([0,1000])
+    pylab.xlim([0,1000])
     filename = os.path.join(graphdir, "dfd_final.eps")
     plt.savefig(filename, bbox_inches='tight')
     plt.close(fig)        
