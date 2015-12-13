@@ -8,7 +8,7 @@ any attrition with X = 0 or X2 = 0 is equivalent to no attrition.
 
 experiment = {
   "controller": {
-    "REP" : 50,
+    "REP" : 25,
     "GEN" : 2000,
     "SAMPLE" : 20,
     "GEPHI": True,
@@ -20,8 +20,8 @@ experiment = {
     "max" : 1000,
     "b_s" : [1.3,1.6,1.9,2.2,2.5],
     "X" : [0,0.01,0.025],
-    "K" : [10], 
-    "X2" : [0.001,0.01,0.001]
+    "K" : [10,20,40,80], 
+    "X2" : [0.1,0.01,0.001]
   },
   "sn" : {
       "n_per_gen" : 10,

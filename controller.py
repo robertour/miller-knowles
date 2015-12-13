@@ -92,37 +92,7 @@ class ExperimentController():
         filename = os.path.join(self.timedir,'fin.csv')
         fp = open(filename, 'w', newline='')
         csvw = csv.writer(fp, delimiter=',')
-        csvw.writerow((
-                # network descriptors
-                'id','rep','network',
-                'coop_prob','alg','b','X','K','X2',
-                # output measures  
-                'removed_nodes', 'gen',
-                'cooperators','size','ave','ave2','total_fitness',
-                # initial structure measures
-                'ini_transitivity','ini_average_clustering',
-                'ini_components','ini_size_biggest_component',
-                'ini_ave_short_path_biggest',
-                # initial fit measures
-                'ini_alpha', 'ini_sigma', 'ini_D',
-                'ini_xmin', 'ini_xmax',
-                'ini_R', 'ini_p',
-                # final structure measures 
-                'fin_transitivity','fin_average_clustering',
-                'fin_components','fin_size_biggest_component',
-                'fin_ave_short_path_biggest',
-                # final fit measures
-                'fin_alpha', 'fin_sigma', 'fin_D',
-                'fin_xmin', 'fin_xmax',
-                'fin_R', 'fin_p',
-                # network seed                
-                'network_randomseed', 'randomseed',
-                # time measures
-                '_ini_perf_counter', '_ini_gephi', 
-                '_ini_graphs', '_ini_calcs', '_ini_fit',
-                '_fin_perf_counter', '_fin_gephi', 
-                '_fin_graphs', '_fin_calcs', '_fin_fit',
-                'total_time'))
+        csvw.writerow(COLS_DESCRIPTORS)
         fp.flush()
 
         for desc, seed in self.seeds.items():
@@ -198,8 +168,19 @@ class ExperimentController():
         
     def start(self, sn, growth_method, att_method, att_method2, csv_writer):
         
+        #open the file
+        iter_dir = os.path.join(self.timedir, str(sn.treatment), str(sn.id))
+        if not os.path.exists(iter_dir):
+            os.makedirs(iter_dir)
+        
+        filename = os.path.join(iter_dir,'fin.csv')
+        fp = open(filename, 'w', newline='')
+        csvw_iter = csv.writer(fp, delimiter=',')
+        csvw_iter.writerow(COLS_DESCRIPTORS_ITER)
+        fp.flush()
+        
         total_time = _ini_perf_counter = time.perf_counter()
-        self.start_network(sn,growth_method)
+        self.start_network(sn,growth_method,csvw_iter)
         _ini_perf_counter = round(time.perf_counter() - _ini_perf_counter,2)
         
         _ini_calcs = time.perf_counter()            
@@ -225,9 +206,12 @@ class ExperimentController():
             _ini_graphs = round(time.perf_counter() - _ini_graphs,2)
 
         _fin_perf_counter = time.perf_counter()
-        (ave, ave2) = self.runner(sn, growth_method, att_method, att_method2)
+        (ave, ave2) = self.runner(sn, growth_method, att_method, 
+                                  att_method2, csvw_iter)
         _fin_perf_counter = round(time.perf_counter() - _fin_perf_counter,2)
-                
+
+        # close the file of the current iteration
+        fp.close()
         
         if ave == -1:
             sn.cooperators = 0
@@ -323,7 +307,7 @@ class ExperimentController():
                                  total_time))
         
 
-    def start_network(self, sn, growth_method):
+    def start_network(self, sn, growth_method, csv_iter):
         GEN = self.GEN
         POP = sn.max
 
@@ -331,14 +315,24 @@ class ExperimentController():
         sn.update_strategies()
         sn.growth_initial(growth_method)
         while (sn.size < POP and sn.gen < GEN):
-                sn.play_games_and_remove_isolated_nodes()
-                sn.update_strategies()
-                growth_method(sn)
-                #if sn.cooperators > 0:
-                #    import ipdb;ipdb.set_trace()
+            sn.play_games_and_remove_isolated_nodes()
+            coop2 = sn.cooperators
+            sn.update_strategies()
+            coop = sn.cooperators 
+            growth_method(sn)
+                
+            csv_iter.writerow((# network descriptors
+                                 sn.id,sn.rep,sn.nt_desc,
+                                 sn.coop_prob,sn.fluct,sn.b,sn.X,sn.K,sn.X2,
+                                 # output measures
+                                 sn.removed_nodes, sn.gen,
+                                 sn.cooperators,sn.size,coop,coop2,sn.total_fit,
+                                 # seeds
+                                 sn.nt_randomseed, sn.randomseed))
+
 
         
-    def runner(self, sn, growth_method, att_method, att_method2):  
+    def runner(self, sn, growth_method, att_method, att_method2, csv_iter):  
         GEN = self.GEN
         POP = sn.max
         SAMPLE = self.SAMPLE
@@ -347,7 +341,10 @@ class ExperimentController():
             sn.play_games_and_remove_isolated_nodes()
             if sn.size < sn.e_per_gen:
                 return (-1, -1)
+            coop2 = sn.cooperators
             sn.update_strategies()
+            coop = sn.cooperators
+            
             if(sn.size < POP):
                 growth_method(sn)
             else:
@@ -355,6 +352,15 @@ class ExperimentController():
             
             if sn.K > 0 and sn.gen % sn.K == 0:
                 sn.attrition(att_method2)
+            
+            csv_iter.writerow((# network descriptors
+                             sn.id,sn.rep,sn.nt_desc,
+                             sn.coop_prob,sn.fluct,sn.b,sn.X,sn.K,sn.X2,
+                             # output measures
+                             sn.removed_nodes, sn.gen,
+                             sn.cooperators,sn.size,coop,coop2,sn.total_fit,
+                             # seeds
+                             sn.nt_randomseed, sn.randomseed))
 
         ave = 0.0
         ave2 = 0.0
@@ -362,9 +368,13 @@ class ExperimentController():
             sn.play_games_and_remove_isolated_nodes()
             if sn.size < sn.e_per_gen:
                 return (-1, -1)
+
+            coop2 = sn.cooperators
             ave2 += sn.cooperators / (1.0 * sn.size)
             sn.update_strategies()
+            coop = sn.cooperators
             ave += sn.cooperators / (1.0 * sn.size)
+            
             if(sn.size < POP):
                 growth_method(sn)
             else:
@@ -372,6 +382,16 @@ class ExperimentController():
             
             if sn.K > 0 and sn.gen % sn.K == 0:
                 sn.attrition(att_method2)
+                
+            csv_iter.writerow((# network descriptors
+                             sn.id,sn.rep,sn.nt_desc,
+                             sn.coop_prob,sn.fluct,sn.b,sn.X,sn.K,sn.X2,
+                             # output measures
+                             sn.removed_nodes, sn.gen,
+                             sn.cooperators,sn.size,coop,coop2,sn.total_fit,
+                             # seeds
+                             sn.nt_randomseed, sn.randomseed))
+
 
         sn.play_games_and_remove_isolated_nodes()
         ave2 += sn.cooperators / (1.0 * sn.size)
@@ -380,5 +400,7 @@ class ExperimentController():
         
         if ave > SAMPLE:
             import ipdb; ipdb.set_trace()
+
+        
 
         return (ave / SAMPLE, ave2/SAMPLE)

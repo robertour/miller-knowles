@@ -50,3 +50,45 @@ FINAL_STAGE = 1
 
 FOLDER_INITIAL = 'initial'
 FOLDER_FINAL = 'final'
+
+COLS_DESCRIPTORS = (
+                # network descriptors
+                'id','rep','network',
+                'coop_prob','alg','b','X','K','X2',
+                # output measures  
+                'removed_nodes', 'gen',
+                'cooperators','size','ave','ave2','total_fitness',
+                # initial structure measures
+                'ini_transitivity','ini_average_clustering',
+                'ini_components','ini_size_biggest_component',
+                'ini_ave_short_path_biggest',
+                # initial fit measures
+                'ini_alpha', 'ini_sigma', 'ini_D',
+                'ini_xmin', 'ini_xmax',
+                'ini_R', 'ini_p',
+                # final structure measures 
+                'fin_transitivity','fin_average_clustering',
+                'fin_components','fin_size_biggest_component',
+                'fin_ave_short_path_biggest',
+                # final fit measures
+                'fin_alpha', 'fin_sigma', 'fin_D',
+                'fin_xmin', 'fin_xmax',
+                'fin_R', 'fin_p',
+                # network seed                
+                'network_randomseed', 'randomseed',
+                # time measures
+                '_ini_perf_counter', '_ini_gephi', 
+                '_ini_graphs', '_ini_calcs', '_ini_fit',
+                '_fin_perf_counter', '_fin_gephi', 
+                '_fin_graphs', '_fin_calcs', '_fin_fit',
+                'total_time')
+
+COLS_DESCRIPTORS_ITER = (
+                # network descriptors
+                'id','rep','network',
+                'coop_prob','alg','b','X','K','X2',
+                # output measures  
+                'removed_nodes', 'gen',
+                'cooperators','size','ave','ave2','total_fitness',
+                # network seed                
+                'network_randomseed', 'randomseed')

@@ -61,7 +61,7 @@ def network_structure_calculations(sn):
 
 
 def generate_gephi(sn, timedir, folder):
-    gephidir = os.path.join(timedir, "gephi", str(sn.treatment), 
+    gephidir = os.path.join(timedir, str(sn.treatment), "gephi", 
                             str(sn.id), folder)
     if not os.path.exists(gephidir):
         os.makedirs(gephidir)
@@ -70,7 +70,7 @@ def generate_gephi(sn, timedir, folder):
 
 def generate_graphs(sn, fit, timedir, stage, palette):
     
-    graphdir = os.path.join(timedir, "graphs", sn.treatment, str(sn.id))
+    graphdir = os.path.join(timedir, sn.treatment, "graphs", str(sn.id))
     if not os.path.exists(graphdir):
         os.makedirs(graphdir)
    
@@ -196,7 +196,7 @@ def generate_graphs(sn, fit, timedir, stage, palette):
     
     
 def save_figures(sn, palette, timedir):
-    graphdir = os.path.join(timedir, "graphs", str(sn.treatment))
+    graphdir = os.path.join(timedir, str(sn.treatment), "graphs")
     if not os.path.exists(graphdir):
         os.makedirs(graphdir)
     
