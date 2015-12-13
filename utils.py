@@ -70,7 +70,6 @@ def generate_gephi(sn, timedir, folder):
 
 def generate_graphs(sn, fit, timedir, stage, palette):
     
-    
     graphdir = os.path.join(timedir, "graphs", sn.treatment, str(sn.id))
     if not os.path.exists(graphdir):
         os.makedirs(graphdir)

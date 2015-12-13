@@ -30,4 +30,4 @@ def n2g(g, directory):
         firstline = ['Source','Target']
         firstline.extend(list(atts.keys()))
         edgewriter.writerow(firstline)
-        edgewriter.writerows(edgeslist)   
+        edgewriter.writerows(edgeslist)

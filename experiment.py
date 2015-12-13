@@ -1,11 +1,68 @@
 from variables import *
 
 """
-CAUTION: Models without attrition are better test separately because
+CAUTION: It is better to test Models without attrition separately because
 any attrition with X = 0 or X2 = 0 is equivalent to no attrition.
 """
 
+
+experiment = {
+  "controller": {
+    "REP" : 50,
+    "GEN" : 2000,
+    "SAMPLE" : 20,
+    "GEPHI": True,
+    "GRAPHS": True,
+    "network_seeds": [TRIAD],
+    "coop_probs": [JUST_COOPERATORS],
+    "growths" : [EPA],
+    "attritions" : [TOURN_LEAST_FIT],
+    "max" : 1000,
+    "b_s" : [1.3,1.6,1.9,2.2,2.5],
+    "X" : [0,0.01,0.025],
+    "K" : [10], 
+    "X2" : [0.001,0.01,0.001]
+  },
+  "sn" : {
+      "n_per_gen" : 10,
+      "e_per_gen" : 2,
+      "tourn" : 0.01,
+      "randomseed" : None,
+    }
+}
+
+
+
+# COOPERATORS 20-10-2015
+""" last exectution 
+experiment = {
+  "controller": {
+    "REP" : 10,
+    "GEN" : 2000,
+    "SAMPLE" : 20,
+    "GEPHI": True,
+    "GRAPHS": True,
+    "network_seeds": [TRIAD],
+    "coop_probs": [JUST_DEFECTORS],
+    "growths" : [PA,EPA,CRA],
+    "attritions" : [TOURN_LEAST_FIT],
+    "max" : 1000,
+    "b_s" : [1.0],
+    "X" : [0,0.01,0.025],
+    "K" : [0],#10,20,40,80
+    "X2" : [0]
+  },
+  "sn" : {
+      "n_per_gen" : 10,
+      "e_per_gen" : 2,
+      "tourn" : 0.01,
+      "randomseed" : None,
+    }
+}
+"""
+
 # COOPERATORS 19-10-2015
+"""
 experiment = { 
   "controller": {
     "REP" : 10,
@@ -33,6 +90,7 @@ experiment = {
       "randomseed" : None,
     }
 }
+"""
 
 
 """ DEFECTORS

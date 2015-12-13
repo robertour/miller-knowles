@@ -44,7 +44,7 @@ def tournament_fittest2(sn):
         g = sn.g
         
         winners = []
-    
+         
         for i in range(round(sn.size*sn.X2)):
 
             # avoid repetitions randomly select the participants
