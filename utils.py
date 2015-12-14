@@ -12,6 +12,7 @@ from variables import *
 from networkx_to_gephi import *
 from sortedcontainers.sortedlist import SortedList
 from sortedcontainers.sorteddict import SortedDict
+from pygments.console import light_colors
 
 
 def get_cmaps(N, alpha=None):
@@ -26,9 +27,17 @@ def get_cmaps(N, alpha=None):
     return [map_index_to_rgb_color, map_index_to_rgb_color_alpha]
 
 def get_colormaps(N):
-    dark_colors=('blue','red','green','purple','black','darksage',
-                 'blueviolet','goldenrod','olive','firebrick')
-    light_colors=('skyblue', 'orange','greenyellow', 'magenta','gray','sage',
+    if (N > 10):
+        gc = get_cmaps(N, 0.05)
+        dark_colors = []
+        light_colors = []
+        for i in range(N):
+            dark_colors.append(gc[0](i))
+            light_colors.append(gc[1](i))
+    else:
+        dark_colors=('blue','red','green','purple','black','darksage',
+                     'blueviolet','goldenrod','olive','firebrick')
+        light_colors=('skyblue', 'orange','greenyellow', 'magenta','gray','sage',
                   'plum','gold','y','indianred')
     return (dark_colors, light_colors)
 
@@ -169,7 +178,7 @@ def generate_graphs(sn, fit, timedir, stage, palette):
     elif stage == FINAL_STAGE:
         fig = plt.figure(DFD_FINAL)
     plt.loglog(degree_x,freq_y,linestyle='-', marker='', 
-               color=palette[1][sn.rep]) 
+               color=palette[0][sn.rep]) 
 
     
     #  INITIAL AND FINAL INDIVIDUAL DR
@@ -190,7 +199,7 @@ def generate_graphs(sn, fit, timedir, stage, palette):
         fig = plt.figure(DR_INITIAL)
     elif stage == FINAL_STAGE:
         fig = plt.figure(DR_FINAL)
-    plt.loglog(degree_sequence,ls='-',color=palette[1][sn.rep],marker='.')
+    plt.loglog(degree_sequence,ls='-',color=palette[0][sn.rep],marker='.')
 
     
     
