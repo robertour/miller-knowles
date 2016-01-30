@@ -1,8 +1,6 @@
 # miller-knowles implementations
 
-This an implementation of [Miller and Knowles simulation](https://mitpress.mit.edu/sites/default/files/titles/content/ecal2015/ch026.html).
-
-This is still a work  in progress but at the point of this commit, no statistical differences have been found between my and their results. 
+This an implementation of [Miller and Knowles simulation](https://mitpress.mit.edu/sites/default/files/titles/content/ecal2015/ch026.html), that also contains attritions of the fittest nodes.
 
 This implementation relies on [Networkx](https://networkx.github.io/) and important optimizations have been done for the simulations to run fast.
 
